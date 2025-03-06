@@ -15,7 +15,9 @@ NUM_GENERATIONS = 10 #250  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
-SCENARIO = 'Walker-v0'
+#SCENARIO = 'Walker-v0'
+SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores
+#cão ao contrario e sapo
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
 
