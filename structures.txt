@@ -1,0 +1,21 @@
+(μ + λ) - ES (100 gens, 500 steps, generic fitness)
+Generation 10: Best Fitness = 1.214952368231478
+Generation 100: Best Fitness = 3.727908265704133
+Best robot structure found:
+[[3. 3. 3. 4. 0.]
+ [0. 2. 0. 4. 0.]
+ [0. 2. 1. 3. 4.]
+ [4. 3. 3. 3. 3.]
+ [3. 4. 0. 0. 1.]]
+
+(μ + λ) - ES (10 gens, 1000 steps, generic fitness)
+Generation 4: Best Fitness = 2.0999105709190493
+SIMULATION UNSTABLE... TERMINATING
+Generation 5: Best Fitness = 2.0999105709190493
+Best robot structure found:
+[[1. 4. 4. 1. 2.]
+ [3. 1. 2. 2. 1.]
+ [2. 4. 3. 4. 4.]
+ [0. 0. 0. 2. 4.]
+ [0. 0. 1. 3. 3.]]
+Best fitness score: 2.12061630750091

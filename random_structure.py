@@ -3,14 +3,13 @@ import random
 import copy
 import gymnasium as gym
 from evogym.envs import *
-
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
 import utils
 from fixed_controllers import *
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 100 #250  # Number of generations to evolve
+NUM_GENERATIONS = 10 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid

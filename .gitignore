@@ -1,4 +1,4 @@
 __pycache__/*
-
+vids/*
 # To delete already pushed files:
 # git rm --cached [name of file or folder] 
