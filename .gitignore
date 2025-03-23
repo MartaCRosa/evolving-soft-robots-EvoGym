@@ -1,2 +1,3 @@
-__pycache__/
-statement/
+__pycache__/*
+README.md
+
