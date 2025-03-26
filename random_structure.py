@@ -83,69 +83,15 @@ def random_search():
     
     return best_robot, best_fitness
 
-# ---- MUTATION FUNCTION ----
-def mutate_robot(parent):
-    """Mutate the structure by changing a random voxel type."""
-    child = copy.deepcopy(parent)
-    x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
-    new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure mutation occurs
-    child[x, y] = new_voxel
-    return child if is_connected(child) else parent  # Ensure connectivity
 
-# ---- EVOLUTION STRATEGIES (μ + λ) ----
-def evolution_strategy():
-    """Perform (μ + λ) Evolution Strategies optimization."""
-    # Step 1: Initialize μ parents
-    population = [create_random_robot() for _ in range(MU)]
-    fitness_scores = [evaluate_fitness(robot) for robot in population]
-
-    for gen in range(NUM_GENERATIONS):
-        offspring = []
-
-        # Step 2: Generate λ offspring through mutation
-        for _ in range(LAMBDA):
-            parent_idx = np.random.randint(0, MU)  # Select a random parent
-            child = mutate_robot(population[parent_idx])
-            offspring.append(child)
-
-        # Step 3: Evaluate offspring fitness
-        offspring_fitness = [evaluate_fitness(robot) for robot in offspring]
-
-        # Step 4: Select the best μ individuals from (μ + λ)
-        combined_population = population + offspring
-        combined_fitness = fitness_scores + offspring_fitness
-        sorted_indices = np.argsort(combined_fitness)[::-1]  # Sort in descending order
-
-        population = [combined_population[i] for i in sorted_indices[:MU]]
-        fitness_scores = [combined_fitness[i] for i in sorted_indices[:MU]]
-
-        print(f"Generation {gen+1}: Best Fitness = {max(fitness_scores)}")
-
-    # Return best found solution
-    best_robot = population[np.argmax(fitness_scores)]
-    best_fitness = max(fitness_scores)
-    return best_robot, best_fitness
-
-"""
 # Random 
 best_robot, best_fitness = random_search()
 print("Best robot structure found:")
 print(best_robot)
 print("Best fitness score:")
 print(best_fitness)
-"""
-
-# ES
-MU = 5  # Number of parents
-LAMBDA = 10  # Number of offspring
-best_robot, best_fitness = evolution_strategy()
-print("Best robot structure found:")
-print(best_robot)
-print("Best fitness score:", best_fitness)
-
-
 i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/ES_.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='gifs/random_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
