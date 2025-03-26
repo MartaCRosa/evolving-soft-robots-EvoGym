@@ -3,7 +3,7 @@ import random
 import gymnasium as gym
 from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
-from neural_controller import *
+from controller_neural import *
 
 
 NUM_GENERATIONS = 100  # Number of generations to evolve

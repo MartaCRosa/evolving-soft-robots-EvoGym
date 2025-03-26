@@ -2,7 +2,7 @@ import numpy as np
 import gymnasium as gym
 from evogym import EvoViewer, get_full_connectivity
 import imageio
-from fixed_controllers import *
+from controllers_fixed import *
 
 # ---- SIMULATE BEST ROBOT ----
 def simulate_best_robot(robot_structure, scenario=None, steps=500, controller = alternating_gait):

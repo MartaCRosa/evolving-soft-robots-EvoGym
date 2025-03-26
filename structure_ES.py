@@ -5,7 +5,7 @@ import gymnasium as gym
 from evogym.envs import *
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
 import utils
-from fixed_controllers import *
+from controllers_fixed import *
 
 
 # ---- PARAMETERS ----
