@@ -12,7 +12,7 @@ from fixed_controllers import *
 NUM_GENERATIONS = 100 #250  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 200
+STEPS = 400
 
 #SCENARIO = 'Walker-v0'
 SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
@@ -29,30 +29,44 @@ CONTROLLER = alternating_gait
 def evaluate_fitness(robot_structure, view=False):    
     try:
         connectivity = get_full_connectivity(robot_structure)
-  
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) #gym cria cenario 
+        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
         env.reset()
-        sim = env.sim  # criar cenario de raiz e por la o robot
+        sim = env.sim
         viewer = EvoViewer(sim)
         viewer.track_objects('robot')
-        t_reward = 0
-        action_size = sim.get_dim_action_space('robot')  # Get correct action size
-        for t in range(STEPS):  
-            # Update actuation before stepping
-            actuation = CONTROLLER(action_size,t)
-            if view:
-                viewer.render('screen')  #modo view para por no ecra, podemos nao fazer
-            ob, reward, terminated, truncated, info = env.step(actuation)
-            t_reward += reward
 
-            if terminated or truncated:
-                env.reset()
+        t_reward = 0
+        action_size = sim.get_dim_action_space('robot')
+        successful = False  # Track if robot reaches goal early
+        ran_out_of_time = False  # Track if the robot just reached max steps
+
+        for t in range(STEPS):  
+            actuation = CONTROLLER(action_size, t)
+            if view:
+                viewer.render('screen')
+
+            ob, reward, terminated, truncated, info = env.step(actuation)  
+            t_reward += reward  
+
+            if terminated:  # Did the robot reach the goal or fail?
+                successful = True
+                break  # Stop simulation early
+
+            if truncated:  # Did the robot just run out of time?
+                ran_out_of_time = True
                 break
 
         viewer.close()
         env.close()
+
+        # Adjust fitness score based on termination type
+        if successful:
+            t_reward += 500 - t  # Bonus for reaching goal quickly
+        elif ran_out_of_time:
+            t_reward *= 0.9  # Slight penalty for not reaching the goal in time
+
         return t_reward
-    except (ValueError, IndexError) as e:
+    except (ValueError, IndexError):
         return 0.0
 
 
@@ -118,4 +132,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/ES_100gen_200step.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='gifs/ES_100gen_400step_new_fit.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)

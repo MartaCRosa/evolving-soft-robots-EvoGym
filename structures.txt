@@ -28,3 +28,12 @@ Best robot structure found:
  [4. 4. 2. 3. 3.]
  [1. 4. 3. 3. 0.]]
 Best fitness score: 0.40085882312615356
+
+(μ + λ) - ES (100 gens, 400 steps, new fitness with termination into account)
+Best robot structure found:
+[[3. 3. 1. 4. 4.]
+ [0. 3. 4. 1. 4.]
+ [0. 4. 2. 1. 3.]
+ [1. 4. 0. 0. 1.]
+ [3. 4. 3. 3. 3.]]
+Best fitness score: 1.8709616573352212
