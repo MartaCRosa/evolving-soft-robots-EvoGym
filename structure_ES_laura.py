@@ -7,24 +7,23 @@ from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectiv
 import utils
 from controllers_fixed import *
 
-# CONSISTENTE E RAPIDO
-# O MSM NUMERO DE INDIVIDUOS
-
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 100 #250  # Number of generations to evolve
+NUM_GENERATIONS = 10 #250  # Number of generations to evolve
+#comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 400
+STEPS = 500
 
-#SCENARIO = 'Walker-v0'
-SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
+SCENARIO = 'Walker-v0'
+#SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
+#cão ao contrario e sapo
 
 # ---- VOXEL TYPES ----
-VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-)
+VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
 
-CONTROLLER = alternating_gait
-#CONTROLLER = sinusoidal_wave
+#CONTROLLER = alternating_gait
+CONTROLLER = sinusoidal_wave
 #CONTROLLER = hopping_motion
 
 
@@ -32,44 +31,37 @@ CONTROLLER = alternating_gait
 def evaluate_fitness(robot_structure, view=False):    
     try:
         connectivity = get_full_connectivity(robot_structure)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
+  
+        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) #gym cria cenario 
         env.reset()
-        sim = env.sim
+        sim = env.sim  # criar cenario de raiz e por la o robot
         viewer = EvoViewer(sim)
         viewer.track_objects('robot')
-
         t_reward = 0
-        action_size = sim.get_dim_action_space('robot')
-        successful = False  # Track if robot reaches goal early
-        ran_out_of_time = False  # Track if the robot just reached max steps
-
+        action_size = sim.get_dim_action_space('robot')  # Get correct action size
         for t in range(STEPS):  
-            actuation = CONTROLLER(action_size, t)
+            # Update actuation before stepping
+            actuation = CONTROLLER(action_size,t)
             if view:
-                viewer.render('screen')
+                viewer.render('screen')  #modo view para por no ecra, podemos nao fazer
+            ob, reward, terminated, truncated, info = env.step(actuation)
+            t_reward += reward
 
-            ob, reward, terminated, truncated, info = env.step(actuation)  
-            t_reward += reward  
-
-            if terminated:  # Did the robot reach the goal or fail?
-                successful = True
-                break  # Stop simulation early
-
-            if truncated:  # Did the robot just run out of time?
-                ran_out_of_time = True
+            if terminated:
+                t_reward *=1.05
+                print("Sucess! Simulation terminated.",t_reward)
+                env.reset()
+                break
+            elif truncated:
+                t_reward *=0.9
+                print("Time limit reached. Simulation truncated.",t_reward)
+                env.reset()
                 break
 
         viewer.close()
         env.close()
-
-        # Adjust fitness score based on termination type
-        if successful:
-            t_reward += 500 - t  # Bonus for reaching goal quickly
-        elif ran_out_of_time:
-            t_reward *= 0.9  # Slight penalty for not reaching the goal in time
-
         return t_reward
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as e:
         return 0.0
 
 
@@ -81,58 +73,103 @@ def create_random_robot():
     random_robot, _ = sample_robot(grid_size) #podemos criar nós o robot
     return random_robot
 
-# ---- MUTATION FUNCTION ----
-def mutate_robot(parent):
-    """Mutate the structure by changing a random voxel type."""
-    child = copy.deepcopy(parent)
-    x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
-    new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure mutation occurs
-    child[x, y] = new_voxel
-    return child if is_connected(child) else parent  # Ensure connectivity
 
-# ---- EVOLUTION STRATEGIES (μ + λ) ----
-def evolution_strategy():
-    """Perform (μ + λ) Evolution Strategies optimization."""
-    # Step 1: Initialize μ parents
-    population = [create_random_robot() for _ in range(MU)]
+# Algoritmo genetico
+
+
+def crossover(parent1, parent2):
+    """Perform crossover between two parent robots (grid-based)."""
+    # Ensure parents have the same grid size
+    if parent1.shape != parent2.shape:
+        raise ValueError("Parents must have the same shape!")
+
+    rows, cols = parent1.shape
+
+    # Choose a random crossover point
+    crossover_point = random.randint(1, rows - 1)  
+
+    # Create child by combining parts from both parents
+    child = np.vstack((parent1[:crossover_point, :], parent2[crossover_point:, :]))
+
+    return child
+
+def mutate_robot(parent,mutation_rate):
+    """Mutate the structure by changing a random voxel type."""
+
+    if random.random() < mutation_rate:  # Check mutation probability
+        child = copy.deepcopy(parent)
+        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
+        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure mutation occurs
+        child[x, y] = new_voxel
+        return child if is_connected(child) else parent  # Ensure connectivity
+    
+    return parent # se nao mutar devolve o original
+
+def tournament_selection(population, k=5):
+
+    robots_selecionados = random.sample(population,k)
+    fitness_scores = [(robot,evaluate_fitness(robot)) for robot in robots_selecionados]
+
+    robots_sorted = sorted(fitness_scores, key=lambda x: x[1], reverse=True)
+
+    melhor_robot = robots_sorted[0][0]
+    
+    return melhor_robot
+
+def genetic_algorithm(pop_size,mutation_rate):
+
+    best_robot = None
+    best_fitness = -float('inf')
+
+    population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
 
-    for gen in range(NUM_GENERATIONS):
-        offspring = []
+    for it in range(NUM_GENERATIONS):
+        population, fitness_scores = zip(*sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True))
 
-        # Step 2: Generate λ offspring through mutation
-        for _ in range(LAMBDA):
-            parent_idx = np.random.randint(0, MU)  # Select a random parent
-            child = mutate_robot(population[parent_idx])
-            offspring.append(child)
+        if fitness_scores[0] == 0:
+            break
 
-        # Step 3: Evaluate offspring fitness
-        offspring_fitness = [evaluate_fitness(robot) for robot in offspring]
+        new_population = []
+        while len(new_population) < pop_size:
+            p1 = tournament_selection(population)
+            p2 = tournament_selection(population)
+            child = crossover(p1, p2)
+            child = mutate_robot(child, mutation_rate)
+            new_population.append(child)
 
-        # Step 4: Select the best μ individuals from (μ + λ)
-        combined_population = population + offspring
-        combined_fitness = fitness_scores + offspring_fitness
-        sorted_indices = np.argsort(combined_fitness)[::-1]  # Sort in descending order
+        population = new_population
+        fitness_scores = [evaluate_fitness(robot) for robot in population]  # Recompute fitness
 
-        population = [combined_population[i] for i in sorted_indices[:MU]]
-        fitness_scores = [combined_fitness[i] for i in sorted_indices[:MU]]
+        print(f"Iteration {it + 1}: Best Fitness = {max(fitness_scores)}")
 
-        print(f"Generation {gen+1}: Best Fitness = {max(fitness_scores)}")
+    best_index = np.argmax(fitness_scores)
+    best_robot = population[best_index]
+    best_fitness = fitness_scores[best_index]
 
-    # Return best found solution
-    best_robot = population[np.argmax(fitness_scores)]
-    best_fitness = max(fitness_scores)
     return best_robot, best_fitness
 
-MU = 5  # Number of parents
-LAMBDA = 10  # Number of offspring
-best_robot, best_fitness = evolution_strategy()
+
+best_robot, best_fitness = genetic_algorithm(5,0.05)
 print("Best robot structure found:")
 print(best_robot)
-print("Best fitness score:", best_fitness)
-
+print("Best fitness score:")
+print(best_fitness)
 i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/ES_100gen_400step_new_fit.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='gifs/GA_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+
+
+# Random 
+#best_robot, best_fitness = random_search()
+#print("Best robot structure found:")
+#print(best_robot)
+#print("Best fitness score:")
+#print(best_fitness)
+#i = 0
+#while i < 5:
+   # utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
+  #  i += 1
+#utils.create_gif(best_robot, filename='gifs/random_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
