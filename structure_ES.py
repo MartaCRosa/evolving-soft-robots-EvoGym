@@ -7,6 +7,9 @@ from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectiv
 import utils
 from controllers_fixed import *
 
+# CONSISTENTE E RAPIDO
+# O MSM NUMERO DE INDIVIDUOS
+
 
 # ---- PARAMETERS ----
 NUM_GENERATIONS = 100 #250  # Number of generations to evolve
