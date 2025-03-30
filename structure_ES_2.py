@@ -123,7 +123,7 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Actuator bonus (interval of numbers that make sense for this robot)
         actuator_count = np.count_nonzero(robot_structure == 4)
-        if 2 <= actuator_count <= 6:
+        if 2 <= actuator_count <= 4:
             actuator_bonus = 20  
         else:
             actuator_bonus = -10 * abs(actuator_count - 4)  
@@ -159,4 +159,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_70gen_500steps_4vrnc.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_70gen_500steps_4vrnc_4act.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
