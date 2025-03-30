@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 50 #250  # Number of generations to evolve
+NUM_GENERATIONS = 70 #250  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 500
+STEPS = 400
 
 #SCENARIO = 'Walker-v0'
 SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
@@ -49,11 +49,9 @@ def evaluate_fitness(robot_structure, view=False):
             actuation = CONTROLLER(action_size, t)
             if view:
                 viewer.render('screen')
-
             ob, reward, terminated, truncated, info = env.step(actuation)  
             t_reward += reward  
             reward_list.append(reward)
-
             if terminated:
                 successful = True
                 break  
@@ -64,7 +62,7 @@ def evaluate_fitness(robot_structure, view=False):
         viewer.close()
         env.close()
 
-        # === FITNESS CALCULATION ===
+        # FITNESS CALCULATION
         speed_score = t_reward / STEPS  
 
         # Actuator bonus (encourage but not too many)
@@ -75,8 +73,8 @@ def evaluate_fitness(robot_structure, view=False):
             actuator_bonus = -10 * abs(actuator_count - 4)  
 
         # Running out of time penalty
-        if ran_out_of_time:
-            t_reward *= 0.8  
+        if successful:
+            t_reward *= 1.5  
 
         # Stability penalty (chaotic movement)
         reward_variance = np.var(reward_list)
@@ -100,17 +98,13 @@ def create_random_robot():
     return random_robot
 
 
-def mutate_robot(parent, mutation_rate=0.2):
-    """Mutate the structure by changing multiple voxel types."""
+# ---- MUTATION FUNCTION ----
+def mutate_robot(parent):
+    """Mutate the structure by changing a random voxel type."""
     child = copy.deepcopy(parent)
-    num_voxels = child.shape[0] * child.shape[1]
-    num_mutations = max(1, int(mutation_rate * num_voxels))  # At least one mutation
-    
-    for _ in range(num_mutations):
-        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
-        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure change
-        child[x, y] = new_voxel
-
+    x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
+    new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure mutation occurs
+    child[x, y] = new_voxel
     return child if is_connected(child) else parent  # Ensure connectivity
 
 def crossover(parent1, parent2):
@@ -121,34 +115,23 @@ def crossover(parent1, parent2):
     return child if is_connected(child) else parent1  # Ensure connectivity
 
 def evolution_strategy():
-    """Perform (μ + λ) Evolution Strategies with crossover and enhanced mutation."""
+    """Perform (μ + λ) Evolution Strategies optimization and track fitness."""
     population = [create_random_robot() for _ in range(MU)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
-
-    best_fitness_over_time = []
-    avg_fitness_over_time = []
+    
+    best_fitness_over_time = []  # Track best fitness per generation
+    avg_fitness_over_time = []   # Track average fitness per generation
 
     for gen in range(NUM_GENERATIONS):
-        offspring = []
-
-        # Generate offspring through mutation & crossover
-        for _ in range(LAMBDA):
-            if random.random() < 0.5:  # 50% mutation, 50% crossover
-                parent = random.choice(population)
-                child = mutate_robot(parent)
-            else:
-                p1, p2 = random.sample(population, 2)
-                child = crossover(p1, p2)
-                
-            offspring.append(child)
-
-        # Evaluate offspring fitness
+        offspring = [mutate_robot(random.choice(population)) for _ in range(LAMBDA)]
         offspring_fitness = [evaluate_fitness(robot) for robot in offspring]
 
-        # (μ, λ) selection: Only select from offspring
-        sorted_indices = np.argsort(offspring_fitness)[::-1]  
-        population = [offspring[i] for i in sorted_indices[:MU]]
-        fitness_scores = [offspring_fitness[i] for i in sorted_indices[:MU]]
+        combined_population = population + offspring
+        combined_fitness = fitness_scores + offspring_fitness
+        sorted_indices = np.argsort(combined_fitness)[::-1]  
+
+        population = [combined_population[i] for i in sorted_indices[:MU]]
+        fitness_scores = [combined_fitness[i] for i in sorted_indices[:MU]]
 
         best_fitness = max(fitness_scores)
         avg_fitness = np.mean(fitness_scores)
@@ -173,7 +156,7 @@ def evolution_strategy():
     return population[np.argmax(fitness_scores)], max(fitness_scores)
 
 MU = 5  
-LAMBDA = 15  
+LAMBDA = 10  
 best_robot, best_fitness = evolution_strategy()
 print("Best robot structure found:")
 print(best_robot)
@@ -183,4 +166,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/ES_250gen_500step_new.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='gifs/ES_70gen_500step_new_2.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
