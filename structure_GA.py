@@ -9,7 +9,7 @@ from controllers_fixed import *
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 10 #250  # Number of generations to evolve
+NUM_GENERATIONS = 100 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -22,8 +22,8 @@ SCENARIO = 'Walker-v0'
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
 
-#CONTROLLER = alternating_gait
-CONTROLLER = sinusoidal_wave
+CONTROLLER = alternating_gait
+#CONTROLLER = sinusoidal_wave
 #CONTROLLER = hopping_motion
 
 
@@ -159,7 +159,7 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/GA_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/GA/GA_100gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
 # Random 
