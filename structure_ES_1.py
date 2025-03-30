@@ -138,6 +138,7 @@ def evolution_strategy():
 
     return population[np.argmax(fitness_scores)], max(fitness_scores)
 
+
 # (λ = 2μ) or (λ = 3μ) or (λ = 7μ)
 MU = 5  # Number of parents
 LAMBDA = 15  # Number of offspring
@@ -150,4 +151,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/ES_250gen_500step_new.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_bridge/ES_1.1/gif/ES_250gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
