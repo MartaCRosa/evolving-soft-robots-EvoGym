@@ -123,7 +123,7 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Actuator bonus (interval of numbers that make sense for this robot)
         actuator_count = np.count_nonzero(robot_structure == 4)
-        if 2 <= actuator_count <= 6:
+        if 2 <= actuator_count <= 4:
             actuator_bonus = 20  
         else:
             actuator_bonus = -10 * abs(actuator_count - 4)  
@@ -139,8 +139,20 @@ def evaluate_fitness(robot_structure, view=False):
         else:
             stability_penalty = 0  
 
+        # Leg Bonus (ensure legs at the sides and a gap in the middle)
+        bottom_rows = robot_structure[3:, :]
+
+        # Check if legs exist on both rows
+        has_legs = np.all(bottom_rows[0, [0, 1]] != 0) and np.all(bottom_rows[0, [3, 4]] != 0) and bottom_rows[0, 2] == 0 \
+            and np.all(bottom_rows[1, [0, 1]] != 0) and np.all(bottom_rows[1, [3, 4]] != 0) and bottom_rows[1, 2] == 0
+
+        if has_legs:
+            leg_bonus = 20
+        else:
+            leg_bonus = -10
+
         # Final fitness score
-        final_fitness = speed_score * 100 + actuator_bonus + stability_penalty
+        final_fitness = speed_score * 100 + actuator_bonus + stability_penalty + leg_bonus
         return max(final_fitness, 0)  
 
     except (ValueError, IndexError):
@@ -159,4 +171,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_70gen_500steps_4vrnc.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_70gen_500steps_4vrnc_new_legs.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
