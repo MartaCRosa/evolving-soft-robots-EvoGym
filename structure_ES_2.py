@@ -9,7 +9,7 @@ from controllers_fixed import *
 import matplotlib.pyplot as plt
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 70  # Number of generations to evolve
+NUM_GENERATIONS = 150  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
@@ -141,15 +141,19 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Leg Bonus (ensure legs at the sides and a gap in the middle)
         bottom_rows = robot_structure[3:, :]
+        leg_bonus = 0
 
-        # Check if legs exist on both rows
-        has_legs = np.all(bottom_rows[0, [0, 1]] != 0) and np.all(bottom_rows[0, [3, 4]] != 0) and bottom_rows[0, 2] == 0 \
-            and np.all(bottom_rows[1, [0, 1]] != 0) and np.all(bottom_rows[1, [3, 4]] != 0) and bottom_rows[1, 2] == 0
+        if bottom_rows[0, 0] != 0 and bottom_rows[1, 0] != 0:  # Check both rows for left leg in column 0
+            leg_bonus += 5
+        if bottom_rows[0, 1] != 0 and bottom_rows[1, 1] != 0:  # Check both rows for left leg in column 1
+            leg_bonus += 5
+        if bottom_rows[0, 3] != 0 and bottom_rows[1, 3] != 0:  # Check both rows for right leg in column 3
+            leg_bonus += 5
+        if bottom_rows[0, 4] != 0 and bottom_rows[1, 4] != 0:  # Check both rows for right leg in column 4
+            leg_bonus += 5
 
-        if has_legs:
-            leg_bonus = 20
-        else:
-            leg_bonus = -10
+        if bottom_rows[0, 2] != 0 or bottom_rows[1, 2] != 0:  # If center leg is present in any row
+            leg_bonus -= 10
 
         # Final fitness score
         final_fitness = speed_score * 100 + actuator_bonus + stability_penalty + leg_bonus
@@ -171,4 +175,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_70gen_500steps_4vrnc_new_legs.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_150gen_500steps_4vrnc_new_legs.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
