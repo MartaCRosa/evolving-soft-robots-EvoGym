@@ -14,8 +14,8 @@ MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
 
-#SCENARIO = 'Walker-v0'
-SCENARIO = 'BridgeWalker-v0'
+SCENARIO = 'Walker-v0'
+#SCENARIO = 'BridgeWalker-v0'
 
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-)
 
@@ -138,7 +138,7 @@ def evaluate_fitness(robot_structure, view=False):
             stability_penalty = -10
         else:
             stability_penalty = 0  
-
+        """
         # Leg Bonus (ensure legs at the sides and a gap in the middle)
         bottom_rows = robot_structure[3:, :]
         leg_bonus = 0
@@ -154,9 +154,9 @@ def evaluate_fitness(robot_structure, view=False):
 
         if bottom_rows[0, 2] != 0 or bottom_rows[1, 2] != 0:  # If center leg is present in any row
             leg_bonus -= 10
-
+        """
         # Final fitness score
-        final_fitness = speed_score * 100 + actuator_bonus + stability_penalty + leg_bonus
+        final_fitness = speed_score * 100 + actuator_bonus + stability_penalty #+ leg_bonus
         return max(final_fitness, 0)  
 
     except (ValueError, IndexError):
@@ -175,4 +175,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_bridge/ES_2/gif/ES2_150gen_500steps_4vrnc_new_legs.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/ES_2/gif/ES2_150gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
