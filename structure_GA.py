@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 10 #250  # Number of generations to evolve
+NUM_GENERATIONS = 20 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -49,12 +49,12 @@ def evaluate_fitness(robot_structure, view=False):
             t_reward += reward
 
             if terminated:
-                t_reward *=1.05
+                #t_reward *=1.05
                 print("Sucess! Simulation terminated.",t_reward)
                 env.reset()
                 break
             elif truncated:
-                t_reward *=0.9
+                #t_reward *=0.9
                 print("Time limit reached. Simulation truncated.",t_reward)
                 env.reset()
                 break
@@ -122,6 +122,8 @@ def genetic_algorithm(pop_size,mutation_rate):
     best_robot = None
     best_fitness = -float('inf')
 
+    ELITISM_COUNT = 2
+
     population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
 
@@ -134,10 +136,16 @@ def genetic_algorithm(pop_size,mutation_rate):
         if fitness_scores[0] == 0:
             break
 
-        new_population = []
+        new_population = list(population[:ELITISM_COUNT]) # nova população começa com os 2 melhores robots
+
         while len(new_population) < pop_size:
-            p1 = tournament_selection(population)
-            p2 = tournament_selection(population)
+
+            while True: # garantir que são escolhidos pais diferentes
+                p1 = tournament_selection(population)
+                p2 = tournament_selection(population)
+                if not np.array_equal(p1, p2):  
+                    break
+
             child = crossover(p1, p2)
             child = mutate_robot(child, mutation_rate)
             new_population.append(child)
@@ -174,7 +182,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     return best_robot, best_fitness
 
 
-best_robot, best_fitness = genetic_algorithm(5,0.1)
+best_robot, best_fitness = genetic_algorithm(10,0.3)
 print("Best robot structure found:")
 print(best_robot)
 print("Best fitness score:")
