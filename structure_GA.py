@@ -6,10 +6,11 @@ from evogym.envs import *
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
 import utils
 from controllers_fixed import *
+import matplotlib.pyplot as plt
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 100 #250  # Number of generations to evolve
+NUM_GENERATIONS = 10 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -124,6 +125,9 @@ def genetic_algorithm(pop_size,mutation_rate):
     population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
 
+    best_fitness_over_time = []
+    avg_fitness_over_time = []
+
     for it in range(NUM_GENERATIONS):
         population, fitness_scores = zip(*sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True))
 
@@ -141,16 +145,36 @@ def genetic_algorithm(pop_size,mutation_rate):
         population = new_population
         fitness_scores = [evaluate_fitness(robot) for robot in population]  # Recompute fitness
 
+        best_fitness = max(fitness_scores)
+        avg_fitness = np.mean(fitness_scores)
+
+
+        best_fitness_over_time.append(best_fitness)
+        avg_fitness_over_time.append(avg_fitness)
+
+
         print(f"Iteration {it + 1}: Best Fitness = {max(fitness_scores)}")
 
     best_index = np.argmax(fitness_scores)
     best_robot = population[best_index]
     best_fitness = fitness_scores[best_index]
 
+    # Plot fitness vs. generations
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(NUM_GENERATIONS), best_fitness_over_time, label="Best Fitness", color="blue")
+    plt.plot(range(NUM_GENERATIONS), avg_fitness_over_time, label="Average Fitness", color="orange", linestyle="dashed")
+    
+    plt.xlabel("Generations")
+    plt.ylabel("Fitness")
+    plt.title("Evolution Strategy: Fitness Progression")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
     return best_robot, best_fitness
 
 
-best_robot, best_fitness = genetic_algorithm(5,0.05)
+best_robot, best_fitness = genetic_algorithm(5,0.1)
 print("Best robot structure found:")
 print(best_robot)
 print("Best fitness score:")
