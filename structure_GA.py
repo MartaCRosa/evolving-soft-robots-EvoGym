@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 20 #250  # Number of generations to evolve
+NUM_GENERATIONS = 150 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
