@@ -140,15 +140,16 @@ def genetic_algorithm(pop_size,mutation_rate):
 
         while len(new_population) < pop_size:
 
-            while True: # garantir que são escolhidos pais diferentes
+            while len(new_population) < pop_size:
                 p1 = tournament_selection(population)
                 p2 = tournament_selection(population)
-                if not np.array_equal(p1, p2):  
-                    break
+                child = crossover(p1, p2)
+                child = mutate_robot(child, mutation_rate)
+                new_population.append(child)
 
-            child = crossover(p1, p2)
-            child = mutate_robot(child, mutation_rate)
-            new_population.append(child)
+                child = crossover(p1, p2)
+                child = mutate_robot(child, mutation_rate)
+                new_population.append(child)
 
         population = new_population
         fitness_scores = [evaluate_fitness(robot) for robot in population]  # Recompute fitness
@@ -174,7 +175,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     
     plt.xlabel("Generations")
     plt.ylabel("Fitness")
-    plt.title("Evolution Strategy: Fitness Progression")
+    plt.title("Genetic Algorithm: Fitness Progression")
     plt.legend()
     plt.grid()
     plt.show()
@@ -182,7 +183,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     return best_robot, best_fitness
 
 
-best_robot, best_fitness = genetic_algorithm(10,0.3)
+best_robot, best_fitness = genetic_algorithm(8,0.3)
 print("Best robot structure found:")
 print(best_robot)
 print("Best fitness score:")
@@ -191,7 +192,7 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/GA/GA_100gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/GA/GA_20gen1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
 # Random 
