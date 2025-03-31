@@ -192,7 +192,7 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/GA/GA_20gen1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/GA/GA_150gen1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
 # Random 
