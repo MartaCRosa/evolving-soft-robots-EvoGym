@@ -15,3 +15,6 @@ Best robot structure found:
  [2. 4. 1. 0. 3.]
  [3. 4. 3. 3. 3.]]
 Best fitness score: 20.405611357032548
+
+70 gens, 500 steps, 4 variance, legs
+
