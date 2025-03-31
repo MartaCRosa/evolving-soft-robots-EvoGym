@@ -1,0 +1,17 @@
+150 gens, 500 steps, 4 variance, separate legs
+Best robot structure found:
+[[3. 3. 3. 3. 0.]
+ [3. 3. 3. 4. 3.]
+ [1. 3. 4. 3. 1.]
+ [3. 4. 0. 2. 3.]
+ [4. 3. 0. 2. 1.]]
+Best fitness score: 41.347957092866295
+
+150 gens, 500 steps, 4 variance (it rotated)
+Best robot structure found:
+[[0. 0. 3. 3. 3.]
+ [0. 1. 1. 3. 1.]
+ [0. 2. 3. 0. 4.]
+ [0. 2. 0. 4. 4.]
+ [0. 1. 1. 3. 0.]]
+Best fitness score: 20.559100506978297
