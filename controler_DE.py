@@ -60,8 +60,8 @@ def evaluate_fitness(weights, view=False):
 
 
 # ---- RANDOM SEARCH ALGORITHM ----
-best_fitness = -np.inf  # Stores the highest fitness score
-best_weights = None  # Stores the best-performing network
+best_fitness = -np.inf
+best_weights = None
 
 for generation in range(NUM_GENERATIONS):
     # Generate random weights for the neural network
@@ -102,8 +102,9 @@ def visualize_policy(weights):
 
     viewer.close()
     env.close()
-
 i = 0
 while i < 5:
     visualize_policy(best_weights)
     i += 1
+
+#utils.create_gif(best_robot, filename='task2_step/DE/gif/DE_150gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
