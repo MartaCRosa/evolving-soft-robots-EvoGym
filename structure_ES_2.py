@@ -9,7 +9,7 @@ from controllers_fixed import *
 import matplotlib.pyplot as plt
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 150  # Number of generations to evolve
+NUM_GENERATIONS = 100  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
@@ -97,7 +97,6 @@ def evaluate_fitness(robot_structure, view=False):
         t_reward = 0
         action_size = sim.get_dim_action_space('robot')
         successful = False
-        ran_out_of_time = False
         reward_list = []  # Store rewards per step
 
         for t in range(STEPS):  
@@ -112,7 +111,6 @@ def evaluate_fitness(robot_structure, view=False):
                 successful = True
                 break  
             if truncated:
-                ran_out_of_time = True
                 break
         viewer.close()
         env.close()
@@ -124,9 +122,9 @@ def evaluate_fitness(robot_structure, view=False):
         # Actuator bonus (interval of numbers that make sense for this robot)
         actuator_count = np.count_nonzero(robot_structure == 4)
         if 2 <= actuator_count <= 4:
-            actuator_bonus = 20  
+            actuator_bonus = 10  
         else:
-            actuator_bonus = -10 * abs(actuator_count - 4)  
+            actuator_bonus = -5 * abs(actuator_count - 4)  
 
         # Finnishing simulation bonus
         if successful:
@@ -144,17 +142,20 @@ def evaluate_fitness(robot_structure, view=False):
         leg_bonus = 0
 
         if bottom_rows[0, 0] != 0 and bottom_rows[1, 0] != 0:  # Check both rows for left leg in column 0
-            leg_bonus += 5
+            leg_bonus += 3
         if bottom_rows[0, 1] != 0 and bottom_rows[1, 1] != 0:  # Check both rows for left leg in column 1
-            leg_bonus += 5
+            leg_bonus += 1.5
         if bottom_rows[0, 3] != 0 and bottom_rows[1, 3] != 0:  # Check both rows for right leg in column 3
-            leg_bonus += 5
+            leg_bonus += 3
         if bottom_rows[0, 4] != 0 and bottom_rows[1, 4] != 0:  # Check both rows for right leg in column 4
-            leg_bonus += 5
+            leg_bonus += 1.5
 
-        if bottom_rows[0, 2] != 0 or bottom_rows[1, 2] != 0:  # If center leg is present in any row
-            leg_bonus -= 10
+        if bottom_rows[0, 2] != 0:  # If center leg is present in any row
+            leg_bonus -= 3
+        if bottom_rows[1, 2] != 0:
+            leg_bonus-=1.5
         """
+
         # Final fitness score
         final_fitness = speed_score * 100 + actuator_bonus + stability_penalty #+ leg_bonus
         return max(final_fitness, 0)  
@@ -175,4 +176,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/ES_2/gif/ES2_150gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/ES_2/gif/ES2_100gen_500steps_.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
