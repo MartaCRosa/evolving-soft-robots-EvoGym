@@ -10,14 +10,14 @@ import matplotlib.pyplot as plt
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 150 #250  # Number of generations to evolve
+NUM_GENERATIONS = 20 #250  # Number of generations to evolve
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
 
-#SCENARIO = 'Walker-v0'
-SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
+SCENARIO = 'Walker-v0'
+#SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
 #cão ao contrario e sapo
 
 # ---- VOXEL TYPES ----
@@ -67,6 +67,7 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Actuator bonus (interval of numbers that make sense for this robot)
         actuator_count = np.count_nonzero(robot_structure == 4)
+        actuator_bonus = 0
         if 2 <= actuator_count <= 4:
             actuator_bonus = 5   
 
