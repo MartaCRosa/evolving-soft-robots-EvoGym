@@ -8,13 +8,20 @@ import utils
 from controllers_fixed import *
 import matplotlib.pyplot as plt
 
+# abordagens nao validas no 3.1
+# CMA-ES
+# evolução diferencial
+
+# começar com algo simples e dps alterar pontos fracos
+# vantagem representação de inteiros - 
+# individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 20 #250  # Number of generations to evolve
+NUM_GENERATIONS = 20 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
-MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
+MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 500
+STEPS = 500 #fixo
 
 SCENARIO = 'Walker-v0'
 #SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
