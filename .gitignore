@@ -1,6 +1,8 @@
 __pycache__/*
-#task1_bridge/*
-#task1_walker/*
+task1_bridge/*
+task1_walker/*
+task2_obstacle/*
+task2_stepper/*
 
 # To delete already pushed files:
 # git rm --cached [name of file or folder] 
