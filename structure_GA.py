@@ -8,13 +8,20 @@ import utils
 from controllers_fixed import *
 import matplotlib.pyplot as plt
 
+# abordagens nao validas no 3.1
+# CMA-ES
+# evolução diferencial
+
+# começar com algo simples e dps alterar pontos fracos
+# vantagem representação de inteiros - 
+# individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 150 #250  # Number of generations to evolve
+NUM_GENERATIONS = 20 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
-MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
+MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 500
+STEPS = 500 #fixo
 
 SCENARIO = 'Walker-v0'
 #SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
@@ -61,6 +68,18 @@ def evaluate_fitness(robot_structure, view=False):
 
         viewer.close()
         env.close()
+
+        # Speed bonus
+        speed_score = (t_reward / STEPS)*100
+
+        # Actuator bonus (interval of numbers that make sense for this robot)
+        actuator_count = np.count_nonzero(robot_structure == 4)
+        actuator_bonus = 0
+        if 2 <= actuator_count <= 4:
+            actuator_bonus = 5   
+
+        t_reward = speed_score + actuator_bonus
+
         return t_reward
     except (ValueError, IndexError) as e:
         return 0.0
@@ -192,7 +211,7 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/GA/GA_150gen1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/GA/GA_150bridge     .gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
 # Random 

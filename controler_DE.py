@@ -106,5 +106,3 @@ i = 0
 while i < 5:
     visualize_policy(best_weights)
     i += 1
-
-#utils.create_gif(best_robot, filename='task2_step/DE/gif/DE_150gen_500steps.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
