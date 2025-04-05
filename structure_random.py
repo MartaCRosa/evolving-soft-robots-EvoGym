@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import copy
 import gymnasium as gym
 from evogym.envs import *
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
@@ -9,15 +8,13 @@ from controllers_fixed import *
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 10 #250  # Number of generations to evolve
-#comecar com grelha pequena e dps explorar
+NUM_GENERATIONS = 1000  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
 
-#SCENARIO = 'Walker-v0'
-SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
-#cão ao contrario e sapo
+SCENARIO = 'Walker-v0'
+#SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
 
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
@@ -84,7 +81,6 @@ def random_search():
     return best_robot, best_fitness
 
 
-# Random 
 best_robot, best_fitness = random_search()
 print("Best robot structure found:")
 print(best_robot)
@@ -94,4 +90,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='gifs/random_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/Random/Random_5.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
