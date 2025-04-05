@@ -134,8 +134,12 @@ def evaluate_fitness(robot_structure, view=False):
             t_reward *= 1.5  
 
         # Distance traveled bonus
-        distance_traveled = end_pos - start_pos  # Positive means moving forward
-        distance_bonus = max(distance_traveled * 1.3, 0)
+        distance_traveled = end_pos - start_pos  
+        if distance_traveled <= 0:
+            distance_bonus = distance_traveled * 2  # negative penalty to discourage backwards movement
+        else:
+            distance_bonus = distance_traveled * 1.3  # forward movement gets rewarded proportionaly to distance
+        #distance_bonus = max(distance_traveled * 1.3, 0) # reward proportional to the distance, reward = 0 if it's moving backwards
 
         # Velocity bonus
         avg_velocity = np.mean(velocity_list)  
