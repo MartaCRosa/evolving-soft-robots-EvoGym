@@ -1,8 +1,11 @@
 __pycache__/*
 task1_bridge/*
-#task1_walker/*
+task1_walker/*
 task2_obstacle/*
 task2_stepper/*
+ES_loop.py
+random_loop.py
+structure_ES_bridge.py
 
 # To delete already pushed files:
 # git rm --cached [name of file or folder] 

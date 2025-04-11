@@ -9,7 +9,7 @@ from controllers_fixed import *
 import matplotlib.pyplot as plt
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 100  # Number of generations to evolve
+NUM_GENERATIONS = 80  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
@@ -44,7 +44,7 @@ def mutate_robot(parent):
 
 # ---- (μ + λ) - EVOLUTION STRATEGIES  ---- 
 def evolution_strategy():
-    """Perform (μ + λ) - ES optimization and track fitnesses."""
+    """Perform (μ + λ) - ES optimization and track fitnesses. -> FROM CHATGPT"""
     population = [create_random_robot() for _ in range(MU)]  # Create mu random robots
     fitness_scores = [evaluate_fitness(robot) for robot in population]  # Evaluate
     
@@ -97,6 +97,7 @@ def evaluate_fitness(robot_structure, view=False):
         viewer.track_objects('robot')
         t_reward = 0
         action_size = sim.get_dim_action_space('robot')
+
         successful = False
         #reward_list = []  # Store rewards per step
         velocity_list = []  # Store velocity per step        
@@ -113,7 +114,7 @@ def evaluate_fitness(robot_structure, view=False):
 
             # Get velocity at this timestep
             velocities = sim.vel_at_time(sim.get_time())  # (2, n) array (x, y velocities)
-            avg_x_velocity = np.mean(velocities[0])  # Take mean x-velocity
+            avg_x_velocity = np.mean(velocities[0])  # x-velocities of n point masses
             velocity_list.append(avg_x_velocity)
 
             if terminated:
@@ -131,23 +132,26 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Finnishing simulation bonus
         if successful:
-            t_reward *= 1.5  
+            t_reward *= 2  
 
         # Distance traveled bonus
-        distance_traveled = end_pos - start_pos  
+        distance_traveled = end_pos - start_pos 
         if distance_traveled <= 0:
-            distance_bonus = distance_traveled * 2  # negative penalty to discourage backwards movement
+            distance_bonus = -20  # negative penalty to discourage backwards movement
         else:
-            distance_bonus = distance_traveled * 1.3  # forward movement gets rewarded proportionaly to distance
+            distance_bonus = distance_traveled*2  # forward movement gets rewarded proportionaly to distance
         #distance_bonus = max(distance_traveled * 1.3, 0) # reward proportional to the distance, reward = 0 if it's moving backwards
 
-        # Velocity bonus
-        avg_velocity = np.mean(velocity_list)  
-        velocity_bonus = max(avg_velocity * 1.3, 0)
+        # Velocity bonus -> FROM CHATGPT
+        avg_velocity = np.mean(velocity_list)  # average x-velocity across all steps
+        if avg_velocity <= 0:
+            velocity_bonus = -10
+        else:
+            velocity_bonus = avg_velocity *3  # rewards higher average velocities, reward = 0 if velocity_bonus < 0
 
-        # Actuator(-) bonus (interval of numbers that make sense for the environment)
+        # Actuator(-) bonus (interval of numbers that make sense for the environment) -> CHATGPT
         actuator_count = np.count_nonzero(robot_structure == 4)
-        if 2 <= actuator_count <= 4:    #2-4 walker, 3-7 bridge
+        if 2 <= actuator_count <= 4:  #2-4 walker, 3-7 bridge
             actuator_bonus = 10  
         else:
             actuator_bonus = -5  
@@ -182,13 +186,14 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Final fitness score
         final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus #+ stability_penalty + leg_bonus
+        #print("Distane traveled: ", distance_traveled, "Average velocity: ", avg_velocity, "Final Fitness: ", final_fitness)
         return max(final_fitness, 0)  
 
     except (ValueError, IndexError):
         return 0.0
 
 
-# (λ = 2μ) or (λ = 3μ) or (λ = 7μ)
+# (λ = 2μ) or (λ = 3μ)
 MU = 5  
 LAMBDA = 10  
 best_robot, best_fitness = evolution_strategy()
@@ -200,4 +205,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/ES/ES_100gen_5.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/ES/ES_0.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)

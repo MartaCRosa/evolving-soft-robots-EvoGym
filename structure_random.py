@@ -13,8 +13,8 @@ MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
 
-SCENARIO = 'Walker-v0'
-#SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
+#SCENARIO = 'Walker-v0'
+SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
 
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
@@ -90,4 +90,4 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/Random/Random_5.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_bridge/Random/Random_1.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
