@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 20 #250  # Number of generations to evolve #hyperparametro
+NUM_GENERATIONS = 50 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -98,20 +98,21 @@ def create_random_robot():
 
 
 def crossover(parent1, parent2):
-    """Perform crossover between two parent robots (grid-based)."""
-    # Ensure parents have the same grid size
+    
+    # garantir que os pais tem a mesma forma e tamanho
     if parent1.shape != parent2.shape:
         raise ValueError("Parents must have the same shape!")
 
     rows, cols = parent1.shape
 
-    # Choose a random crossover point
-    crossover_point = random.randint(1, rows - 1)  
-
-    # Create child by combining parts from both parents
-    child = np.vstack((parent1[:crossover_point, :], parent2[crossover_point:, :]))
-
-    return child
+    for i in range(3): #vai experimentar 3 vezes crossover se nao estiver a conseguir fazer
+            crossover_point = random.randint(1, rows - 1)    # escolher um ponto random de crossover
+            child = np.vstack((parent1[:crossover_point, :], parent2[crossover_point:, :]))  # chil é criado combinando as duas partes dos pais a partir do ponto de crossover selecionado
+            if is_connected(child):
+                return child
+            
+    # caso o child nao esteja conected avalia a fitness dos pais e retorna o melhor deles
+    return copy.deepcopy(parent1) if evaluate_fitness(parent1) >= evaluate_fitness(parent2) else copy.deepcopy(parent2)
 
 def mutate_robot(parent,mutation_rate):
     """Mutate the structure by changing a random voxel type."""
@@ -134,14 +135,14 @@ def tournament_selection(population, k=5):
 
     melhor_robot = robots_sorted[0][0]
     
-    return melhor_robot
+    return copy.deepcopy(melhor_robot)
 
 def genetic_algorithm(pop_size,mutation_rate):
 
     best_robot = None
     best_fitness = -float('inf')
 
-    ELITISM_COUNT = 2
+    ELITISM_COUNT = 3
 
     population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
@@ -155,20 +156,14 @@ def genetic_algorithm(pop_size,mutation_rate):
         if fitness_scores[0] == 0:
             break
 
-        new_population = list(population[:ELITISM_COUNT]) # nova população começa com os 2 melhores robots
+        new_population = [copy.deepcopy(robot) for robot in population[:ELITISM_COUNT]]
 
         while len(new_population) < pop_size:
-
-            while len(new_population) < pop_size:
-                p1 = tournament_selection(population)
-                p2 = tournament_selection(population)
-                child = crossover(p1, p2)
-                child = mutate_robot(child, mutation_rate)
-                new_population.append(child)
-
-                child = crossover(p1, p2)
-                child = mutate_robot(child, mutation_rate)
-                new_population.append(child)
+            p1 = tournament_selection(population)
+            p2 = tournament_selection(population)
+            child = crossover(p1, p2)
+            child = mutate_robot(child, mutation_rate)
+            new_population.append(child)
 
         population = new_population
         fitness_scores = [evaluate_fitness(robot) for robot in population]  # Recompute fitness
