@@ -5,9 +5,10 @@ from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
 from controller_neural import *
 from scipy.optimize import differential_evolution
+import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_GENERATIONS = 20  # Number of generations to evolve
+NUM_GENERATIONS = 5  # Number of generations to evolve
 STEPS = 500
 SEED = 42  # Set random seed for reproducibility
 np.random.seed(SEED)
@@ -47,31 +48,75 @@ def reshape_weights(flat_vector, model):
         idx += size
     return new_weights
 
-# ---- FITNESS FUNCTION ----
+# --- Fitness Function ---
 def evaluate_fitness(weights, view=False):
     set_weights(brain, weights)
     env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
-    viewer = EvoViewer(env.sim)
-    viewer.track_objects('robot')
+    sim = env.sim
+    if view:
+        viewer = EvoViewer(sim)
+        viewer.track_objects('robot')
+
     state = env.reset()[0]
     t_reward = 0
-    for t in range(STEPS):
+    velocity_list = []
+    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])  # center of mass at start
+
+    for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         action = brain(state_tensor).detach().numpy().flatten()
         if view:
             viewer.render('screen')
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
+
+        velocities = sim.vel_at_time(sim.get_time())  # (2, n)
+        avg_x_velocity = np.mean(velocities[0])  # horizontal (x) velocity
+        velocity_list.append(avg_x_velocity)
+
         if terminated or truncated:
             break
-    viewer.close()
+
+    end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
+    distance_traveled = end_pos - start_pos
+
+    # --- Fitness Components ---
+
+    # Distance bonus
+    distance_bonus = distance_traveled * 2 if distance_traveled > 0 else -2
+
+    # Velocity bonus
+    avg_velocity = np.mean(velocity_list)
+    velocity_bonus = avg_velocity * 3 if avg_velocity > 0 else -2
+
+    # Fall penalty if terminated early
+    fall_penalty = -2 if terminated and not truncated else 0
+
+    # Final score
+    final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
+    #final_fitness = max(final_fitness, 0)  # prevent negative fitness
+
+    # Debug
+    print(f"Distance: {distance_traveled:.5f},  Velocity: {avg_velocity:.5f},  Fall: {fall_penalty},  Final: {final_fitness:.5f}")
+
+    if view:
+        viewer.close()
     env.close()
-    return t_reward
+    return final_fitness
 
 # ---- DE FITNESS WRAPPER ----
 def de_fitness(flat_weights):
     weights = reshape_weights(flat_weights, brain)
     return -evaluate_fitness(weights)
+
+# ---- PROGRESS TRACKING ----
+fitness_history = []
+
+def track_progress(xk, convergence):
+    current_best = -de_fitness(xk)
+    fitness_history.append(current_best)
+    print(f"[GENERATION {len(fitness_history)}] Best fitness: {current_best:.4f}")
+    return False
 
 # ---- DE SETUP ----
 initial_weights = get_weights(brain)
@@ -86,7 +131,8 @@ result = differential_evolution(
     popsize=15,
     seed=SEED,
     workers=1,
-    updating='deferred'
+    updating='deferred',
+    callback=track_progress
 )
 
 # ---- BEST WEIGHTS ----
@@ -94,6 +140,15 @@ best_flat_weights = result.x
 best_weights = reshape_weights(best_flat_weights, brain)
 set_weights(brain, best_weights)
 print("Best fitness from DE:", -result.fun)
+
+# ---- FITNESS PLOT ----
+plt.plot(fitness_history, marker='o')
+plt.xlabel('Generation')
+plt.ylabel('Best Fitness')
+plt.title('Fitness Progress Over Generations')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
 # ---- VISUALIZATION ----
 def visualize_policy(weights):
@@ -113,6 +168,6 @@ def visualize_policy(weights):
     env.close()
 
 i = 0
-while i < 5:
+while i < 15:
     visualize_policy(best_weights)
     i += 1

@@ -6,15 +6,15 @@ from evogym import EvoViewer, get_full_connectivity
 from controller_neural import *
 
 # --- EvoGym Setup ---
-NUM_GENERATIONS = 20
+NUM_GENERATIONS = 15
 STEPS = 500
-SEED = 42
+SEED = 41
 np.random.seed(SEED)
 random.seed(SEED)
 
 POPULATION_SIZE = 50
-SIGMA = 0.1
-LEARNING_RATE = 0.03
+SIGMA = 0.05
+LEARNING_RATE = 0.05
 
 SCENARIO = 'DownStepper-v0'
 #SCENARIO = 'ObstacleTraverser-v0'
@@ -43,7 +43,9 @@ def evaluate_fitness(weights, view=False):
         viewer.track_objects('robot')
 
     state = env.reset()[0]
-    total_reward = 0
+    t_reward = 0
+    velocity_list = []
+    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])  # center of mass at start
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
@@ -51,14 +53,42 @@ def evaluate_fitness(weights, view=False):
         if view:
             viewer.render('screen')
         state, reward, terminated, truncated, _ = env.step(action)
-        total_reward += reward
+        t_reward += reward
+
+        velocities = sim.vel_at_time(sim.get_time())  # (2, n)
+        avg_x_velocity = np.mean(velocities[0])  # horizontal (x) velocity
+        velocity_list.append(avg_x_velocity)
+
         if terminated or truncated:
             break
+
+    end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
+    distance_traveled = end_pos - start_pos
+
+    # --- Fitness Components ---
+
+    # Distance bonus
+    distance_bonus = distance_traveled * 2 if distance_traveled > 0 else -5
+
+    # Velocity bonus
+    avg_velocity = np.mean(velocity_list)
+    velocity_bonus = avg_velocity * 3 if avg_velocity > 0 else -5
+
+    # Fall penalty if terminated early
+    fall_penalty = -5 if terminated and not truncated else 0
+
+    # Final score
+    final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
+    final_fitness = max(final_fitness, 0)  # prevent negative fitness
+
+    # Debug
+    print(f"Distance: {distance_traveled:.5f},  Velocity: {avg_velocity:.5f},  Fall: {fall_penalty},  Final: {final_fitness:.5f}")
 
     if view:
         viewer.close()
     env.close()
-    return total_reward
+    return final_fitness
+
 
 # --- Weight Helpers ---
 def flatten_weights(weights):
@@ -119,6 +149,6 @@ def visualize_policy(weights):
     env.close()
 
 i = 0
-while i < 5:
+while i < 15:
     visualize_policy(best_weights)
     i += 1
