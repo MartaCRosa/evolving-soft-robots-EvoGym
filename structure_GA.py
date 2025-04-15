@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 50 #250  # Number of generations to evolve #hyperparametro
+NUM_GENERATIONS = 20 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
