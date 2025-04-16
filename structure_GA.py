@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 20 #250  # Number of generations to evolve #hyperparametro
+NUM_GENERATIONS = 200 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -39,7 +39,6 @@ CONTROLLER = alternating_gait
 def evaluate_fitness(robot_structure, view=False):    
     try:
         connectivity = get_full_connectivity(robot_structure)
-  
         env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) #gym cria cenario 
         env.reset()
         sim = env.sim  # criar cenario de raiz e por la o robot
@@ -47,6 +46,12 @@ def evaluate_fitness(robot_structure, view=False):
         viewer.track_objects('robot')
         t_reward = 0
         action_size = sim.get_dim_action_space('robot')  # Get correct action size
+
+        successful = False
+        #reward_list = []  # Store rewards per step
+        velocity_list = []  # Store velocity per step        
+        start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0]) # Get initial position (center of mass)
+
         for t in range(STEPS):  
             # Update actuation before stepping
             actuation = CONTROLLER(action_size,t)
@@ -54,33 +59,57 @@ def evaluate_fitness(robot_structure, view=False):
                 viewer.render('screen')  #modo view para por no ecra, podemos nao fazer
             ob, reward, terminated, truncated, info = env.step(actuation)
             t_reward += reward
+            #reward_list.append(reward)
+
+           # Get velocity at this timestep
+            velocities = sim.vel_at_time(sim.get_time())  # (2, n) array (x, y velocities)
+            avg_x_velocity = np.mean(velocities[0])  # x-velocities of n point masses
+            velocity_list.append(avg_x_velocity)
 
             if terminated:
-                #t_reward *=1.05
-                print("Sucess! Simulation terminated.",t_reward)
-                env.reset()
+                successful = True
+                break  
+            if truncated:
                 break
-            elif truncated:
-                #t_reward *=0.9
-                print("Time limit reached. Simulation truncated.",t_reward)
-                env.reset()
-                break
-
+        
+        end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])  # Get final position (center of mass)
+        
         viewer.close()
         env.close()
 
-        # Speed bonus
-        speed_score = (t_reward / STEPS)*100
+        #-- FITNESS CALCULATION --
 
-        # Actuator bonus (interval of numbers that make sense for this robot)
+        # Finnishing simulation bonus
+        if successful:
+            t_reward *= 2  
+
+        # Distance traveled bonus
+        distance_traveled = end_pos - start_pos 
+        if distance_traveled <= 0:
+            distance_bonus = -20  # negative penalty to discourage backwards movement
+        else:
+            distance_bonus = distance_traveled*2  # forward movement gets rewarded proportionaly to distance
+        #distance_bonus = max(distance_traveled * 1.3, 0) # reward proportional to the distance, reward = 0 if it's moving backwards
+
+        # Velocity bonus -> FROM CHATGPT
+        avg_velocity = np.mean(velocity_list)  # average x-velocity across all steps
+        if avg_velocity <= 0:
+            velocity_bonus = -10
+        else:
+            velocity_bonus = avg_velocity *3  # rewards higher average velocities, reward = 0 if velocity_bonus < 0
+
+        # Actuator(-) bonus (interval of numbers that make sense for the environment) -> CHATGPT
         actuator_count = np.count_nonzero(robot_structure == 4)
-        actuator_bonus = 0
-        if 2 <= actuator_count <= 4:
-            actuator_bonus = 5   
+        if 2 <= actuator_count <= 4:  #2-4 walker, 3-7 bridge
+            actuator_bonus = 10  
+        else:
+            actuator_bonus = -5  
 
-        t_reward = speed_score + actuator_bonus
+        # Final fitness score
+        final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus #+ stability_penalty + leg_bonus
+        print("Distance traveled: ", distance_traveled, "Average velocity: ", avg_velocity, "Final Fitness: ", final_fitness)
+        return max(final_fitness, 0)
 
-        return t_reward
     except (ValueError, IndexError) as e:
         return 0.0
 
@@ -142,7 +171,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     best_robot = None
     best_fitness = -float('inf')
 
-    ELITISM_COUNT = 3
+    ELITISM_COUNT = 10
 
     population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
@@ -197,7 +226,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     return best_robot, best_fitness
 
 
-best_robot, best_fitness = genetic_algorithm(8,0.3)
+best_robot, best_fitness = genetic_algorithm(30,0.3)
 print("Best robot structure found:")
 print(best_robot)
 print("Best fitness score:")
@@ -206,7 +235,7 @@ i = 0
 while i < 5:
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
     i += 1
-utils.create_gif(best_robot, filename='task1_walker/GA/GA_150bridge     .gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+utils.create_gif(best_robot, filename='task1_walker/GA/GA_200gen_30pop_wlaker.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
 # Random 
