@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 200 #250  # Number of generations to evolve #hyperparametro
+NUM_GENERATIONS = 40 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -171,7 +171,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     best_robot = None
     best_fitness = -float('inf')
 
-    ELITISM_COUNT = 10
+    ELITISM_COUNT = 2
 
     population = [create_random_robot() for _ in range(pop_size)]
     fitness_scores = [evaluate_fitness(robot) for robot in population]
@@ -221,21 +221,43 @@ def genetic_algorithm(pop_size,mutation_rate):
     plt.title("Genetic Algorithm: Fitness Progression")
     plt.legend()
     plt.grid()
-    plt.show()
+
+    # Save the plot to a file
+    plot_filename = f'task1_walker/GA/40gen_fitness_progression_run_{i+1}.png'  # Save the plot as a .png file
+    plt.savefig(plot_filename)
+
+    # Close the plot
+    plt.close()
+
 
     return best_robot, best_fitness
 
+# ----- RUN LOOP --------- #
 
-best_robot, best_fitness = genetic_algorithm(30,0.3)
-print("Best robot structure found:")
-print(best_robot)
-print("Best fitness score:")
-print(best_fitness)
-i = 0
-while i < 5:
+POP_SIZE = 20
+MUTATION_RATE = 0.2
+NUM_RUNS = 5
+
+for i in range(NUM_RUNS):
+    print(f"\n--- Starting Run {i+1} ---")
+    best_robot, best_fitness = genetic_algorithm(POP_SIZE, MUTATION_RATE)
+    print(f"Run {i+1} Best Robot:")
+    print(best_robot)
+    print("Best Fitness:", best_fitness)
+
+    # Save structure and fitness to txt
+    txt_filename = f'task1_walker/GA/GA_40gen_{i+6}.txt'
+    with open(txt_filename, 'w') as f:
+        f.write(f"RUN {i+1}\n")
+        f.write(f"Best Fitness: {best_fitness}\n")
+        f.write("Best robot structure:\n")
+        f.write(str(best_robot))
+
+    # Simulate and create gif
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
-    i += 1
-utils.create_gif(best_robot, filename='task1_walker/GA/GA_200gen_30pop_wlaker.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+    gif_path = f'task1_walker/GA/GA_40gen_{i+1}.gif'
+    utils.create_gif(best_robot, filename=gif_path, scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+
 
 
 # Random 
