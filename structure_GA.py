@@ -17,14 +17,14 @@ import matplotlib.pyplot as plt
 # individuos invalidos - vai fora e gera outro/fitness negativa
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 40 #250  # Number of generations to evolve #hyperparametro
+NUM_GENERATIONS = 50 #250  # Number of generations to evolve #hyperparametro
 #comecar com grelha pequena e dps explorar
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500 #fixo
 
-SCENARIO = 'Walker-v0'
-#SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
+#SCENARIO = 'Walker-v0'
+SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
 #cão ao contrario e sapo
 
 # ---- VOXEL TYPES ----
@@ -51,6 +51,7 @@ def evaluate_fitness(robot_structure, view=False):
         #reward_list = []  # Store rewards per step
         velocity_list = []  # Store velocity per step        
         start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0]) # Get initial position (center of mass)
+        orientations = []
 
         for t in range(STEPS):  
             # Update actuation before stepping
@@ -65,6 +66,11 @@ def evaluate_fitness(robot_structure, view=False):
             velocities = sim.vel_at_time(sim.get_time())  # (2, n) array (x, y velocities)
             avg_x_velocity = np.mean(velocities[0])  # x-velocities of n point masses
             velocity_list.append(avg_x_velocity)
+            orientation = sim.object_orientation_at_time(sim.get_time(),"robot")
+            orientations.append(orientation)
+
+
+
 
             if terminated:
                 successful = True
@@ -105,9 +111,18 @@ def evaluate_fitness(robot_structure, view=False):
         else:
             actuator_bonus = -5  
 
+        # DO CHAT
+        # Convert to numpy array
+        orientations = np.unwrap(np.array(orientations))  # Unwrap angles to avoid jump discontinuities
+        orientation_changes = np.diff(orientations)
+        avg_orientation_change = np.mean(np.abs(orientation_changes))  # Overall wobbliness
+
+        stability_penalty = avg_orientation_change*2 #as vezes a robots bons que caiem ao inicio por isso nao penalizar assim tanto
+        # quanto maior a mudança de orientação maior a penalização
+
         # Final fitness score
-        final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus #+ stability_penalty + leg_bonus
-        print("Distance traveled: ", distance_traveled, "Average velocity: ", avg_velocity, "Final Fitness: ", final_fitness)
+        final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus - stability_penalty #+ stability_penalty + leg_bonus
+        print("Final Fitness: ", final_fitness)
         return max(final_fitness, 0)
 
     except (ValueError, IndexError) as e:
@@ -223,7 +238,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     plt.grid()
 
     # Save the plot to a file
-    plot_filename = f'task1_walker/GA/40gen_fitness_progression_run_{i+1}.png'  # Save the plot as a .png file
+    plot_filename = f'task1_walker/GA/50gen__bridge_fitness_progression_run_{i+1}.png'  # Save the plot as a .png file
     plt.savefig(plot_filename)
 
     # Close the plot
@@ -246,7 +261,7 @@ for i in range(NUM_RUNS):
     print("Best Fitness:", best_fitness)
 
     # Save structure and fitness to txt
-    txt_filename = f'task1_walker/GA/GA_40gen_{i+6}.txt'
+    txt_filename = f'task1_walker/GA/GA_50gen_bridge{i}.txt'
     with open(txt_filename, 'w') as f:
         f.write(f"RUN {i+1}\n")
         f.write(f"Best Fitness: {best_fitness}\n")
@@ -255,7 +270,7 @@ for i in range(NUM_RUNS):
 
     # Simulate and create gif
     utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
-    gif_path = f'task1_walker/GA/GA_40gen_{i+1}.gif'
+    gif_path = f'task1_walker/GA/GA_50gen_bridge{i+1}.gif'
     utils.create_gif(best_robot, filename=gif_path, scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
 
