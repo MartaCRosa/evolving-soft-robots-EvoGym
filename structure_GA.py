@@ -94,7 +94,7 @@ def evaluate_fitness(robot_structure, view=False):
         if distance_traveled <= 0:
             distance_bonus = -20  # negative penalty to discourage backwards movement
         else:
-            distance_bonus = distance_traveled*2  # forward movement gets rewarded proportionaly to distance
+            distance_bonus = distance_traveled*3  # forward movement gets rewarded proportionaly to distance
         #distance_bonus = max(distance_traveled * 1.3, 0) # reward proportional to the distance, reward = 0 if it's moving backwards
 
         # Velocity bonus -> FROM CHATGPT
@@ -106,18 +106,21 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Actuator(-) bonus (interval of numbers that make sense for the environment) -> CHATGPT
         actuator_count = np.count_nonzero(robot_structure == 4)
-        if 2 <= actuator_count <= 4:  #2-4 walker, 3-7 bridge
+        if 3 <= actuator_count <= 7:  #2-4 walker, 3-7 bridge
             actuator_bonus = 10  
         else:
             actuator_bonus = -5  
 
         # DO CHAT
         # Convert to numpy array
-        orientations = np.unwrap(np.array(orientations))  # Unwrap angles to avoid jump discontinuities
         orientation_changes = np.diff(orientations)
-        avg_orientation_change = np.mean(np.abs(orientation_changes))  # Overall wobbliness
+        orientation_range = np.max(orientations) - np.min(orientations)
+        avg_change = np.mean(np.abs(orientation_changes))
 
-        stability_penalty = avg_orientation_change*2 #as vezes a robots bons que caiem ao inicio por isso nao penalizar assim tanto
+        # Smart stability penalty
+        stability_penalty = (orientation_range * 1.0 + avg_change * 1.0)
+        stability_penalty = min(stability_penalty, 10)  # soft cap
+        #as vezes a robots bons que caiem ao inicio por isso nao penalizar assim tanto
         # quanto maior a mudança de orientação maior a penalização
 
         # Final fitness score
