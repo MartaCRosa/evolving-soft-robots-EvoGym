@@ -117,11 +117,8 @@ def evaluate_fitness(robot_structure, view=False):
             avg_x_velocity = np.mean(velocities[0])  # x-velocities of n point masses
             velocity_list.append(avg_x_velocity)
 
-            if terminated:
-                successful = True
+            if terminated or truncated:
                 break  
-            if truncated:
-                break
         
         end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])  # Get final position (center of mass)
         
@@ -129,10 +126,6 @@ def evaluate_fitness(robot_structure, view=False):
         env.close()
 
         #-- FITNESS CALCULATION --
-
-        # Finnishing simulation bonus
-        if successful:
-            t_reward *= 2  
 
         # Distance traveled bonus
         distance_traveled = end_pos - start_pos 

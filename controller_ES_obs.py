@@ -14,14 +14,14 @@ SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
 
-SCENARIO = 'DownStepper-v0'
+SCENARIO = 'ObstacleTraverser-v0'
 
-robot_structure = np.array([
-    [1, 3, 1, 0, 0],
-    [4, 1, 3, 2, 2],
-    [3, 4, 4, 4, 4],
-    [3, 0, 0, 3, 2],
-    [0, 0, 0, 0, 2]
+robot_structure = np.array([ 
+[1,3,1,0,0],
+[4,1,3,2,2],
+[3,4,4,4,4],
+[3,0,0,3,2],
+[0,0,0,0,2]
 ])
 
 connectivity = get_full_connectivity(robot_structure)
@@ -65,24 +65,36 @@ def evaluate_fitness(weights, view=False):
     state = env.reset()[0]
     t_reward = 0
     velocity_list = []
+    z_heights = []
+    hop_reward = 0
     start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
-
-    active_time = 0  # New: counts how many steps robot stays alive
+    active_time = 0
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         action = brain(state_tensor).detach().numpy().flatten()
         if view:
             viewer.render('screen')
+
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
 
+        # --- Compute average velocity ---
         velocities = sim.vel_at_time(sim.get_time())
         avg_x_velocity = np.mean(velocities[0])
         velocity_list.append(avg_x_velocity)
 
-        active_time += 1
+        # --- Get terrain and robot z-position ---
+        terrain_obs = sim.get_floor_obs("robot", ["terrain"], sight_dist=2, sight_range=5)
+        z_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0][1])
+        z_heights.append(z_pos)
 
+        # --- Reward hopping if near an obstacle and robot is elevated ---
+        obstacle_near = np.any(terrain_obs < 1.5)  # terrain is close below
+        if obstacle_near and z_pos > 1.5:
+            hop_reward += 5  # reward hopping when it's actually useful
+
+        active_time += 1
         if terminated or truncated:
             break
 
@@ -90,69 +102,75 @@ def evaluate_fitness(weights, view=False):
     distance_traveled = end_pos - start_pos
     avg_velocity = np.mean(velocity_list)
 
+    # --- Additional hop-based bonus (based on movement style) ---
+    vertical_movement = np.std(z_heights)
+    hop_bonus = vertical_movement * 50  # Encourage bouncy/hopping motion
+
     # --- Fitness calculation ---
     distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
-    velocity_bonus = avg_velocity * 30 if avg_velocity > 0 else avg_velocity * 50
-    fall_penalty = -100 if terminated and not truncated else 0
-    #time_bonus = active_time * 0.25  # New: reward robot for surviving longer
+    velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
+    fall_penalty = -200 if terminated and not truncated else 0
+    hop_penalty = -50 if vertical_movement < 0.1 else 0  # discourage stiff robots
 
-    final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty #+ time_bonus
+    final_fitness = (
+        t_reward +
+        distance_bonus +
+        velocity_bonus +
+        hop_bonus +
+        hop_reward +
+        hop_penalty +
+        fall_penalty
+    )
 
     if view:
         viewer.close()
     env.close()
 
-    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, "
+          f"Time: {active_time}, HopReward: {hop_reward:.2f}, Final: {final_fitness:.4f}")
 
     return final_fitness
 
-# --- NES Setup ---
-ALPHA = 0.1  # Step size for NES
-SIGMA = 0.1  # Mutation strength (standard deviation)
-MU = 10  # Number of parents
-NUM_ITERATIONS = 10
+
+# --- (mu + lambda) Evolution Strategy Setup ---
+MU = 5
+LAMBDA = 10
+SIGMA = 0.2
 
 initial_weights = flatten_weights(get_weights(brain))
-mean = np.zeros_like(initial_weights)
-covariance = np.eye(len(initial_weights))  # Identity matrix for covariance
-
+population = np.array([initial_weights + np.random.normal(0, SIGMA, size=initial_weights.shape) for _ in range(MU)]) 
 fitness_progress = []
 
 for generation in range(NUM_ITERATIONS):
-    # --- Generate offspring ---
     offspring = []
-    for _ in range(MU):
-        noise = np.random.multivariate_normal(np.zeros_like(mean), covariance)
-        offspring.append(mean + SIGMA * noise)
-    
+
+    for _ in range(LAMBDA):
+        parent_idx = np.random.randint(0, MU)
+        parent = population[parent_idx]
+        child = parent + np.random.normal(0, SIGMA, size=parent.shape)  # Each child is created by taking a parent and adding random noise
+        offspring.append(child)
+
     offspring = np.array(offspring)
+    combined = np.vstack((population, offspring))
+    
+    fitnesses = np.array([evaluate_fitness(reshape_weights(ind, brain)) for ind in combined])
+    top_indices = np.argsort(fitnesses)[-MU:]
 
-    # --- Evaluate fitness ---
-    fitnesses = np.array([evaluate_fitness(reshape_weights(ind, brain)) for ind in offspring])
+    population = combined[top_indices]
+    best_fitness = fitnesses[top_indices[-1]]
 
-    # --- Update mean and covariance ---
-    # We want to select the best individuals from offspring
-    best_indices = np.argsort(fitnesses)[-MU:]
-    best_offspring = offspring[best_indices]
-
-    # Update the mean and covariance based on the best performing individuals
-    mean = np.mean(best_offspring, axis=0)
-
-    # Estimate covariance from the top-performing offspring
-    centered_offspring = best_offspring - mean
-    covariance = np.cov(centered_offspring.T)
-
-    best_fitness = fitnesses[best_indices[-1]]
     fitness_progress.append(best_fitness)
-
     print(f"Generation {generation+1}/{NUM_ITERATIONS}, Best Fitness: {best_fitness:.5f}")
+
+# Set best weights
+best_individual = population[-1]
 
 # --- Plot ---
 plt.figure(figsize=(10,5))
-plt.plot(fitness_progress, label="Best Fitness", marker='o', color='green')
+plt.plot(fitness_progress, label="Best Fitness", color='green')
 plt.xlabel("Generation")
 plt.ylabel("Best Fitness")
-plt.title("NES Fitness Progress")
+plt.title("(mu + lambda) ES Fitness Progress")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -176,4 +194,4 @@ def visualize_policy(weights):
     env.close()
 
 for _ in range(10):
-    visualize_policy(mean)
+    visualize_policy(reshape_weights(best_individual, brain))
