@@ -241,7 +241,7 @@ def genetic_algorithm(pop_size,mutation_rate):
     plt.grid()
 
     # Save the plot to a file
-    plot_filename = f'task1_walker/GA/50gen__bridge_fitness_progression_run_{i+1}.png'  # Save the plot as a .png file
+    plot_filename = f'task1_walker/GA/50gen__bridge_fitness_progression_run_{i+3}.png'  # Save the plot as a .png file
     plt.savefig(plot_filename)
 
     # Close the plot
@@ -254,7 +254,7 @@ def genetic_algorithm(pop_size,mutation_rate):
 
 POP_SIZE = 20
 MUTATION_RATE = 0.2
-NUM_RUNS = 5
+NUM_RUNS = 2
 
 for i in range(NUM_RUNS):
     print(f"\n--- Starting Run {i+1} ---")
@@ -264,7 +264,7 @@ for i in range(NUM_RUNS):
     print("Best Fitness:", best_fitness)
 
     # Save structure and fitness to txt
-    txt_filename = f'task1_walker/GA/GA_50gen_bridge{i}.txt'
+    txt_filename = f'task1_walker/GA/GA_50gen_bridge{i+1}.txt'
     with open(txt_filename, 'w') as f:
         f.write(f"RUN {i+1}\n")
         f.write(f"Best Fitness: {best_fitness}\n")
