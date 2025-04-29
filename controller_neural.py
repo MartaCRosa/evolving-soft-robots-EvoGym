@@ -1,5 +1,8 @@
 import torch
 import torch.nn as nn
+
+# NeuralController -> simple 2-layer brain that maps observation → action.
+
 # ---- Neural Network for Locomotion Control ----
 class NeuralController(nn.Module):
     def __init__(self, input_size, output_size):

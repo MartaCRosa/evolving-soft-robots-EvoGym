@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 # --- EvoGym Setup ---
 NUM_ITERATIONS = 10
 STEPS = 500
-SEED = 40
+SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
 
-SCENARIO = 'DownStepper-v0'
+SCENARIO = 'ObstacleTraverser-v0'
 
 robot_structure = np.array([ 
 [1,3,1,0,0],
@@ -65,6 +65,8 @@ def evaluate_fitness(weights, view=False):
     state = env.reset()[0]
     t_reward = 0
     velocity_list = []
+    z_heights = []
+    hop_reward = 0
     start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
     active_time = 0
 
@@ -73,15 +75,26 @@ def evaluate_fitness(weights, view=False):
         action = brain(state_tensor).detach().numpy().flatten()
         if view:
             viewer.render('screen')
+
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
 
+        # --- Compute average velocity ---
         velocities = sim.vel_at_time(sim.get_time())
         avg_x_velocity = np.mean(velocities[0])
         velocity_list.append(avg_x_velocity)
 
-        active_time += 1
+        # --- Get terrain and robot z-position ---
+        terrain_obs = sim.get_floor_obs("robot", ["terrain"], sight_dist=2, sight_range=5)
+        z_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0][1])
+        z_heights.append(z_pos)
 
+        # --- Reward hopping if near an obstacle and robot is elevated ---
+        obstacle_near = np.any(terrain_obs < 1.5)  # terrain is close below
+        if obstacle_near and z_pos > 1.5:
+            hop_reward += 5  # reward hopping when it's actually useful
+
+        active_time += 1
         if terminated or truncated:
             break
 
@@ -89,20 +102,35 @@ def evaluate_fitness(weights, view=False):
     distance_traveled = end_pos - start_pos
     avg_velocity = np.mean(velocity_list)
 
+    # --- Additional hop-based bonus (based on movement style) ---
+    vertical_movement = np.std(z_heights)
+    hop_bonus = vertical_movement * 50  # Encourage bouncy/hopping motion
+
     # --- Fitness calculation ---
     distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
     velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
     fall_penalty = -200 if terminated and not truncated else 0
+    hop_penalty = -50 if vertical_movement < 0.1 else 0  # discourage stiff robots
 
-    final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
+    final_fitness = (
+        t_reward +
+        distance_bonus +
+        velocity_bonus +
+        hop_bonus +
+        hop_reward +
+        hop_penalty +
+        fall_penalty
+    )
 
     if view:
         viewer.close()
     env.close()
 
-    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, "
+          f"Time: {active_time}, HopReward: {hop_reward:.2f}, Final: {final_fitness:.4f}")
 
     return final_fitness
+
 
 # --- (mu + lambda) Evolution Strategy Setup ---
 MU = 5
