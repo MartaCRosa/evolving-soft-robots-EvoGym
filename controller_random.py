@@ -6,7 +6,7 @@ from evogym import EvoViewer, get_full_connectivity
 from controller_neural import *
 
 
-NUM_GENERATIONS = 30  # Number of generations to evolve
+NUM_GENERATIONS = 20  # Number of generations to evolve
 STEPS = 500
 SEED = 42  # Set random seed for reproducibility
 np.random.seed(SEED)
