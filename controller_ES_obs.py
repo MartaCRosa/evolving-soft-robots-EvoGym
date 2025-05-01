@@ -26,6 +26,8 @@ robot_structure = np.array([
 
 connectivity = get_full_connectivity(robot_structure)
 env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
+#for i in range(env.sim.get_num_objects()):
+#    print(f"Object {i}: {env.sim.get_name(i)}")
 sim = env.sim
 input_size = env.observation_space.shape[0]
 output_size = env.action_space.shape[0]
@@ -85,14 +87,14 @@ def evaluate_fitness(weights, view=False):
         velocity_list.append(avg_x_velocity)
 
         # --- Get terrain and robot z-position ---
-        terrain_obs = sim.get_floor_obs("robot", ["terrain"], sight_dist=2, sight_range=5)
+        terrain_obs = env.get_floor_obs("robot", ["ground"], sight_dist=1, sight_range=1)
         z_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0][1])
         z_heights.append(z_pos)
 
         # --- Reward hopping if near an obstacle and robot is elevated ---
         obstacle_near = np.any(terrain_obs < 1.5)  # terrain is close below
         if obstacle_near and z_pos > 1.5:
-            hop_reward += 5  # reward hopping when it's actually useful
+            hop_reward += 1  # reward hopping when it's actually useful
 
         active_time += 1
         if terminated or truncated:
