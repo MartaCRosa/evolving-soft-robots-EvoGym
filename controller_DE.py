@@ -7,7 +7,7 @@ from controller_neural import *
 import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_GENERATIONS = 100  # Number of generations to evolve
+NUM_GENERATIONS = 80  # Number of generations to evolve
 STEPS = 500
 SEED = 42  # Set random seed for reproducibility
 np.random.seed(SEED)
@@ -60,7 +60,8 @@ def evaluate_fitness(weights, view=False):
     state = env.reset()[0]
     t_reward = 0
     velocity_list = []
-    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])  # center of mass at start
+    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
+    active_time = 0
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
@@ -70,42 +71,36 @@ def evaluate_fitness(weights, view=False):
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
 
-        velocities = sim.vel_at_time(sim.get_time())  # (2, n)
-        avg_x_velocity = np.mean(velocities[0])  # horizontal (x) velocity
+        velocities = sim.vel_at_time(sim.get_time())
+        avg_x_velocity = np.mean(velocities[0])
         velocity_list.append(avg_x_velocity)
+
+        active_time += 1
 
         if terminated or truncated:
             break
 
     end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
     distance_traveled = end_pos - start_pos
-
-    # --- Fitness Components ---
-
-    # Distance bonus
-    distance_bonus = distance_traveled * 2 if distance_traveled > 0 else -2
-
-    # Velocity bonus
     avg_velocity = np.mean(velocity_list)
-    velocity_bonus = avg_velocity * 3 if avg_velocity > 0 else -2
 
-    # Fall penalty if terminated early
-    fall_penalty = -2 if terminated and not truncated else 0
+    # --- Fitness calculation ---
+    distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
+    velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
+    fall_penalty = -200 if terminated and not truncated else 0
 
-    # Final score
     final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
-    #final_fitness = max(final_fitness, 0)  # prevent negative fitness
-
-    # Debug
-    print(f"Distance: {distance_traveled:.5f},  Velocity: {avg_velocity:.5f},  Fall: {fall_penalty},  Final: {final_fitness:.5f}")
 
     if view:
         viewer.close()
     env.close()
+
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+
     return final_fitness
 
 
-POP_SIZE = 100
+POP_SIZE = 50
 MAX_GAMMA = 1.0
 MIN_GAMMA = 0.3
 CROSSV_RATE = 0.7
