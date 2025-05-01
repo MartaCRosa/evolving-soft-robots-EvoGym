@@ -8,13 +8,14 @@ from controller_neural import *
 import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_ITERATIONS = 10
+NUM_ITERATIONS = 20
 STEPS = 500
 SEED = 40
 np.random.seed(SEED)
 random.seed(SEED)
 
-SCENARIO = 'DownStepper-v0'
+#SCENARIO = 'DownStepper-v0'
+SCENARIO = 'ObstacleTraverser-v0'
 
 robot_structure = np.array([ 
 [1,3,1,0,0],
