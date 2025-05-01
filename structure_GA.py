@@ -69,9 +69,6 @@ def evaluate_fitness(robot_structure, view=False):
             orientation = sim.object_orientation_at_time(sim.get_time(),"robot")
             orientations.append(orientation)
 
-
-
-
             if terminated:
                 successful = True
                 break  
