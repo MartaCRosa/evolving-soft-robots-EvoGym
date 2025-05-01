@@ -4,11 +4,10 @@ import gymnasium as gym
 from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
 from controller_neural import *
-from scipy.optimize import differential_evolution
 import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_GENERATIONS = 5  # Number of generations to evolve
+NUM_GENERATIONS = 100  # Number of generations to evolve
 STEPS = 500
 SEED = 42  # Set random seed for reproducibility
 np.random.seed(SEED)
@@ -31,11 +30,12 @@ sim = env.sim
 input_size = env.observation_space.shape[0]  # Observation size
 output_size = env.action_space.shape[0]  # Action size
 
+
 # ---- CONTROLLER ----
 brain = NeuralController(input_size, output_size)
 
 # ---- WEIGHT UTILITIES ----
-def flatten_weights(weights):
+def flatten_weights(weights): #para podemros trabalhar com os pesos da rede 
     return np.concatenate([w.flatten() for w in weights])
 
 def reshape_weights(flat_vector, model):
@@ -104,60 +104,135 @@ def evaluate_fitness(weights, view=False):
     env.close()
     return final_fitness
 
-# ---- DE FITNESS WRAPPER ----
-def de_fitness(flat_weights):
-    weights = reshape_weights(flat_weights, brain)
-    return -evaluate_fitness(weights)
 
-# ---- PROGRESS TRACKING ----
+POP_SIZE = 100
+MAX_GAMMA = 1.0
+MIN_GAMMA = 0.3
+CROSSV_RATE = 0.7
+BOUNDS = (-2,2)
+
+initial_weights = flatten_weights(get_weights(brain))
+dim = len(initial_weights)
+
+population = [np.random.uniform(BOUNDS[0], BOUNDS[1], dim) for _ in range(POP_SIZE)]
+
+
+""" DE notion --> DE/rand/1/bin: """
+# - rand - strategie of base vetor selection (x1): random selection of base vector for mutation
+# - 1 - difference vector(s): just 1 difference vector (x2-x3)
+# - bin - crossover operator: crossover binomial
+# changing rand to best increases selective pressure but decreases diversity
+# increading number of difference vectors increases diversity
+
+gamma = 0 #scale factor 
+#--> increasing the scale factor: promotes exploration (bigger steps, more random)
+#--> decreasing the scale factor: promotes exploitation (finner search near current good solutions)
+# the goal will be to not keep this factor the same thorugh generations. starting with it bigger
+# and decreasing it through generations! this addaption can also be random. we start with linear first
+
+""" Mutation """
+# --> A mutant vector is created using 3 individuals from the population. These 3 individuals are not changed (acho eu)
+# The scaling factor influences the exploration and exploitation of mutation
+
+
+""" Crossover """
+# --> Crossover happens between a target individual and the mutant vector
+# for selection of survivor of the next generation. The result is an individual called trial
+
+""" Selection for survival of next generation """
+# --> Trial and target individuals are compared and whoever has the best fitness is kept for the next generation.
+# As one trial individual is created for every selected target individual but only one of the 2 is kept, the next generation 
+# keeps the same number of individuals as originally
+
+
+# ---- ADAPTATIVE LINEAR SCALE FUNCTION -----
+def adaptative_linear_scale_factor(max_gamma, min_gamma, num_iter, current_iter):
+    return max_gamma - ((max_gamma - min_gamma) * (current_iter / num_iter))
+
+
+# ---- ADAPTATIVE RANDOM SCALE FUNCTION -----
+def adpatative_random_scale_factor():
+    return 0.5*(1 - np.random.rand())
+
+# ---- MUTATION ------
+def mutation(pop, variant_idx):
+    # variant_idx is the index of the individual to be mutated
+    # defining the index of the 3 randomly choosen individuals
+    idxs = [i for i in range(POP_SIZE) if i != variant_idx] # ensure the individual mutated is not used to mutate itself
+    a, b, c = random.sample(idxs,3) # gets 3 random individuals 
+    scale_factor = adaptative_linear_scale_factor(MAX_GAMMA, MIN_GAMMA, NUM_GENERATIONS, gen) #alterar para random para testar
+    mutant_vector = pop[a] - scale_factor*(pop[b] - pop[c]) # from formula variant = base + scale*difference (base-x1; difference x2-x3)
+    return np.clip(mutant_vector, BOUNDS[0], BOUNDS[1])
+
+# ---- BINOMIAL CROSSOVER -----
+def crossover(target, variant):
+    trial = np.copy(target)
+    for i in range(len(target)):
+        if random.random() < CROSSV_RATE or i == random.randint(0, dim - 1):
+            trial[i] = variant[i] #when this condition is not met the part of the trial[i] remains equal to the target[i]
+    return trial
+
+# ----- DE LOOP ------
 fitness_history = []
+avg_fitness_history = []
 
-def track_progress(xk, convergence):
-    current_best = -de_fitness(xk)
-    fitness_history.append(current_best)
-    print(f"[GENERATION {len(fitness_history)}] Best fitness: {current_best:.4f}")
-    return False
+for gen in range (NUM_GENERATIONS):
+    new_population = []
+    fitness_scores = []
 
-# ---- DE SETUP ----
-initial_weights = get_weights(brain)
-flat_len = len(flatten_weights(initial_weights))
-bounds = [(-2, 2)] * flat_len
+    for i in range(POP_SIZE): # goes through every individual of population
+        target = population[i] 
+        mutant_vector = mutation(population, i)
+        trial = crossover(target, mutant_vector)
 
-result = differential_evolution(
-    de_fitness,
-    bounds,
-    strategy='best1bin',
-    maxiter=NUM_GENERATIONS,
-    popsize=15,
-    seed=SEED,
-    workers=1,
-    updating='deferred',
-    callback=track_progress
-)
+        # Evaluate both target and trial
+        trial_weights = reshape_weights(trial, brain) # individual that went through crossover
+        target_weights = reshape_weights(target, brain) # target individual that was used to create the individual from crossover
 
-# ---- BEST WEIGHTS ----
-best_flat_weights = result.x
-best_weights = reshape_weights(best_flat_weights, brain)
+        trial_fitness = evaluate_fitness(trial_weights)
+        target_fitness = evaluate_fitness(target_weights)
+
+        # Select best
+        if trial_fitness > target_fitness:
+            new_population.append(trial)
+            fitness_scores.append(trial_fitness)
+        else:
+            new_population.append(target)
+            fitness_scores.append(target_fitness)
+
+    population = new_population
+    best_idx = np.argmax(fitness_scores)
+    best_fitness = fitness_scores[best_idx]
+    avg_fitness = np.mean(fitness_scores)
+    print(f"[Gen {gen+1}] Best Fitness: {best_fitness:.4f}")
+    fitness_history.append(best_fitness)
+    avg_fitness_history.append(avg_fitness)
+    
+
+# --- Final best weights ---
+best_weights = reshape_weights(population[best_idx], brain)
 set_weights(brain, best_weights)
-print("Best fitness from DE:", -result.fun)
 
-# ---- FITNESS PLOT ----
-plt.plot(fitness_history, marker='o')
-plt.xlabel('Generation')
-plt.ylabel('Best Fitness')
-plt.title('Fitness Progress Over Generations')
-plt.grid(True)
+# --- Fitness Plot ---
+plt.figure(figsize=(8, 5))
+plt.plot(range(NUM_GENERATIONS), fitness_history, label="Best Fitness", color="blue")
+plt.plot(range(NUM_GENERATIONS), avg_fitness_history, label="Average Fitness", color="orange", linestyle="dashed")
+plt.xlabel("Generations")
+plt.ylabel("Fitness")
+plt.title("Differential Evolution: Fitness Progression")
+plt.legend()
+plt.grid()
 plt.tight_layout()
 plt.show()
 
-# ---- VISUALIZATION ----
+# --- Visualization of Best Controller ---
 def visualize_policy(weights):
     set_weights(brain, weights)
     env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
     viewer = EvoViewer(env.sim)
     viewer.track_objects('robot')
     state = env.reset()[0]
-    for t in range(STEPS):
+    for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         action = brain(state_tensor).detach().numpy().flatten()
         viewer.render('screen')
@@ -167,7 +242,6 @@ def visualize_policy(weights):
     viewer.close()
     env.close()
 
-i = 0
-while i < 15:
+# Visualize multiple times
+for _ in range(5):
     visualize_policy(best_weights)
-    i += 1
