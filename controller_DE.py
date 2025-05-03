@@ -7,7 +7,7 @@ from controller_neural import *
 import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_GENERATIONS = 100  # Number of generations to evolve
+NUM_GENERATIONS = 45  # Number of generations to evolve
 STEPS = 500
 SEED = 42  # Set random seed for reproducibility
 np.random.seed(SEED)
@@ -60,7 +60,8 @@ def evaluate_fitness(weights, view=False):
     state = env.reset()[0]
     t_reward = 0
     velocity_list = []
-    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])  # center of mass at start
+    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
+    active_time = 0
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
@@ -70,42 +71,36 @@ def evaluate_fitness(weights, view=False):
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
 
-        velocities = sim.vel_at_time(sim.get_time())  # (2, n)
-        avg_x_velocity = np.mean(velocities[0])  # horizontal (x) velocity
+        velocities = sim.vel_at_time(sim.get_time())
+        avg_x_velocity = np.mean(velocities[0])
         velocity_list.append(avg_x_velocity)
+
+        active_time += 1
 
         if terminated or truncated:
             break
 
     end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
     distance_traveled = end_pos - start_pos
-
-    # --- Fitness Components ---
-
-    # Distance bonus
-    distance_bonus = distance_traveled * 2 if distance_traveled > 0 else -2
-
-    # Velocity bonus
     avg_velocity = np.mean(velocity_list)
-    velocity_bonus = avg_velocity * 3 if avg_velocity > 0 else -2
 
-    # Fall penalty if terminated early
-    fall_penalty = -2 if terminated and not truncated else 0
+    # --- Fitness calculation ---
+    distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
+    velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
+    fall_penalty = -200 if terminated and not truncated else 0
 
-    # Final score
     final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
-    #final_fitness = max(final_fitness, 0)  # prevent negative fitness
-
-    # Debug
-    print(f"Distance: {distance_traveled:.5f},  Velocity: {avg_velocity:.5f},  Fall: {fall_penalty},  Final: {final_fitness:.5f}")
 
     if view:
         viewer.close()
     env.close()
-    return final_fitness
+
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+
+    return final_fitness, distance_traveled
 
 
-POP_SIZE = 100
+POP_SIZE = 50
 MAX_GAMMA = 1.0
 MIN_GAMMA = 0.3
 CROSSV_RATE = 0.7
@@ -173,40 +168,62 @@ def crossover(target, variant):
     return trial
 
 # ----- DE LOOP ------
+initial_weights = flatten_weights(get_weights(brain))
+dim = len(initial_weights)
+
+population = [np.random.uniform(BOUNDS[0], BOUNDS[1], dim) for _ in range(POP_SIZE)]
+
 fitness_history = []
 avg_fitness_history = []
+best_distance_history = []
 
-for gen in range (NUM_GENERATIONS):
+# Pre-evaluate the initial population
+fitness_cache = []
+distance_cache = []
+for individual in population:
+    weights = reshape_weights(individual, brain)
+    fitness, distance = evaluate_fitness(weights)
+    fitness_cache.append(fitness)
+    distance_cache.append(distance)
+
+for gen in range(NUM_GENERATIONS):
     new_population = []
-    fitness_scores = []
+    new_fitness_cache = []
+    new_distance_cache = []
 
-    for i in range(POP_SIZE): # goes through every individual of population
-        target = population[i] 
+    for i in range(POP_SIZE):
+        target = population[i]
+        target_fitness = fitness_cache[i]
+        target_distance = distance_cache[i]
+
         mutant_vector = mutation(population, i)
         trial = crossover(target, mutant_vector)
+        trial_weights = reshape_weights(trial, brain)
+        trial_fitness, trial_distance = evaluate_fitness(trial_weights)
 
-        # Evaluate both target and trial
-        trial_weights = reshape_weights(trial, brain) # individual that went through crossover
-        target_weights = reshape_weights(target, brain) # target individual that was used to create the individual from crossover
-
-        trial_fitness = evaluate_fitness(trial_weights)
-        target_fitness = evaluate_fitness(target_weights)
-
-        # Select best
+        # Selection
         if trial_fitness > target_fitness:
             new_population.append(trial)
-            fitness_scores.append(trial_fitness)
+            new_fitness_cache.append(trial_fitness)
+            new_distance_cache.append(trial_distance)
         else:
             new_population.append(target)
-            fitness_scores.append(target_fitness)
+            new_fitness_cache.append(target_fitness)
+            new_distance_cache.append(target_distance)
 
     population = new_population
-    best_idx = np.argmax(fitness_scores)
-    best_fitness = fitness_scores[best_idx]
-    avg_fitness = np.mean(fitness_scores)
-    print(f"[Gen {gen+1}] Best Fitness: {best_fitness:.4f}")
+    fitness_cache = new_fitness_cache
+    distance_cache = new_distance_cache
+
+    best_idx = np.argmax(fitness_cache)
+    best_fitness = fitness_cache[best_idx]
+    best_distance = distance_cache[best_idx]
+    avg_fitness = np.mean(fitness_cache)
+
+    print(f"[Gen {gen+1}] Best Fitness: {best_fitness:.6f} | Distance: {best_distance:.6f}")
     fitness_history.append(best_fitness)
     avg_fitness_history.append(avg_fitness)
+    best_distance_history.append(best_distance)
     
 
 # --- Final best weights ---
@@ -219,7 +236,7 @@ plt.plot(range(NUM_GENERATIONS), fitness_history, label="Best Fitness", color="b
 plt.plot(range(NUM_GENERATIONS), avg_fitness_history, label="Average Fitness", color="orange", linestyle="dashed")
 plt.xlabel("Generations")
 plt.ylabel("Fitness")
-plt.title("Differential Evolution: Fitness Progression")
+plt.title("DE Fitness Progression")
 plt.legend()
 plt.grid()
 plt.tight_layout()
