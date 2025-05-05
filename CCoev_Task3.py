@@ -20,12 +20,17 @@ random.seed(SEED)
 
 SCENARIO = 'GapJumper-v0'
 
+def generate_fixed_shape():
+    return np.random.choice([0, 1, 2, 3, 4], size=(5, 5))
+
 class CoopCoevolution:
-    def __init__(self, input_size, output_size, pop_size=6, tournament_size=3):
+    def __init__(self, input_size, output_size, pop_size=6, tournament_size=3, fixed_shape=None):
         self.pop_size = pop_size
         self.tournament_size = tournament_size
         self.input_size = input_size
         self.output_size = output_size
+
+        self.fixed_shape = fixed_shape
 
         self.pop_struct = [self.create_random_robot() for _ in range(pop_size)]
         self.pop_contr = [self.random_weights() for _ in range(pop_size)]
@@ -33,8 +38,13 @@ class CoopCoevolution:
         self.best_fitness_per_generation = []
 
     def create_random_robot(self):
-        grid_size = (random.randint(MIN_GRID_SIZE[0], MAX_GRID_SIZE[0]), random.randint(MIN_GRID_SIZE[1], MAX_GRID_SIZE[1]))
-        return np.random.choice([0, 1, 2, 3, 4], size=grid_size)
+        # Use fixed shape if provided
+        if self.fixed_shape is not None:
+            shape = self.fixed_shape.shape
+        else:
+            shape = (random.randint(MIN_GRID_SIZE[0], MAX_GRID_SIZE[0]), random.randint(MIN_GRID_SIZE[1], MAX_GRID_SIZE[1]))
+        return np.random.choice([0, 1, 2, 3, 4], size=shape)
+
 
     def random_weights(self):
         controller = NeuralController(self.input_size, self.output_size)
@@ -56,13 +66,24 @@ class CoopCoevolution:
         start_pos = np.mean(env.sim.object_pos_at_time(0, "robot")[0])
 
         for _ in range(STEPS):
+
+            # checkar primeiro o tamanho do tensor
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+
+            # Check and adjust input size if necessary
+            if state_tensor.shape[1] != self.input_size:
+                print(f"[WARNING] Input size mismatch: expected {self.input_size}, got {state_tensor.shape[1]}. Adjusting.")
+                self.input_size = state_tensor.shape[1]
+                controller = self.set_weights_into_controller(weights)
+
             action = controller(state_tensor).detach().numpy().flatten()
             state, reward, terminated, truncated, _ = env.step(action)
             t_reward += reward
+
             velocities = env.sim.vel_at_time(env.sim.get_time())
             avg_x_velocity = np.mean(velocities[0])
             velocity_list.append(avg_x_velocity)
+            
             if terminated or truncated:
                 break
 
@@ -119,7 +140,7 @@ class CoopCoevolution:
 
     def train(self, generations=NUM_GENERATIONS):
         for gen in range(generations):
-            best_pair, best_fitness = self.random_pairing_co_evolution()
+            best_pair, best_fitness = self.random_paring_co_evolution()
             self.best_fitness_per_generation.append(best_fitness)
             print(f"Generation {gen}: Best Fitness = {best_fitness:.2f}")
         self.plot_fitness()
@@ -182,11 +203,19 @@ class CoopCoevolution:
             
             return (best_struct.copy(), best_contr.copy()), best_fit
     
-# Example initialization (after loading or defining robot_structure and NeuralController)
-robot_structure = sample_robot()[0]
+
+robot_structure = generate_fixed_shape()
+
+# Now you can use this robot structure
 connectivity = get_full_connectivity(robot_structure)
 env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
 input_size = env.observation_space.shape[0]
 output_size = env.action_space.shape[0]
-evo = CoopCoevolution(input_size, output_size)
+env.close()
+
+# Initialize CoopCoevolution with the generated robot structure
+evo = CoopCoevolution(input_size, output_size, fixed_shape=robot_structure)
 evo.train()
+
+
+
