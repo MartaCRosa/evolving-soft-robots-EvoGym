@@ -146,7 +146,7 @@ def adaptative_linear_scale_factor(max_gamma, min_gamma, num_iter, current_iter)
 
 
 # ---- ADAPTATIVE RANDOM SCALE FUNCTION -----
-def adpatative_random_scale_factor():
+def adaptative_random_scale_factor():
     return 0.5*(1 - np.random.rand())
 
 # ---- MUTATION ------
@@ -155,7 +155,7 @@ def mutation(pop, variant_idx):
     # defining the index of the 3 randomly choosen individuals
     idxs = [i for i in range(POP_SIZE) if i != variant_idx] # ensure the individual mutated is not used to mutate itself
     a, b, c = random.sample(idxs,3) # gets 3 random individuals 
-    scale_factor = adaptative_linear_scale_factor(MAX_GAMMA, MIN_GAMMA, NUM_GENERATIONS, gen) #alterar para random para testar
+    scale_factor = adaptative_random_scale_factor() #alterar para random para testar
     mutant_vector = pop[a] - scale_factor*(pop[b] - pop[c]) # from formula variant = base + scale*difference (base-x1; difference x2-x3)
     return np.clip(mutant_vector, BOUNDS[0], BOUNDS[1])
 
