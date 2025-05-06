@@ -24,18 +24,22 @@ def generate_fixed_shape():
     return np.random.choice([0, 1, 2, 3, 4], size=(5, 5))
 
 class CoopCoevolution:
-    def __init__(self, input_size, output_size, pop_size=6, tournament_size=3, fixed_shape=None):
+    def __init__(self, output_size, pop_size=6, tournament_size=3, fixed_shape=None):
         self.pop_size = pop_size
         self.tournament_size = tournament_size
-        self.input_size = input_size
         self.output_size = output_size
-
         self.fixed_shape = fixed_shape
+
+        # Compute input_size based on one sample robot
+        sample_env = gym.make(SCENARIO, max_episode_steps=STEPS, body=self.fixed_shape, connections=get_full_connectivity(self.fixed_shape))
+        self.input_size = sample_env.observation_space.shape[0]
+        sample_env.close()
 
         self.pop_struct = [self.create_random_robot() for _ in range(pop_size)]
         self.pop_contr = [self.random_weights() for _ in range(pop_size)]
 
         self.best_fitness_per_generation = []
+
 
     def create_random_robot(self):
         # Use fixed shape if provided
@@ -54,51 +58,26 @@ class CoopCoevolution:
         model = NeuralController(self.input_size, self.output_size)
         set_weights(model, weights)
         return model.eval()
+    
 
-    def evaluate(self, structure, weights):
-        connectivity = get_full_connectivity(structure)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=structure, connections=connectivity)
-        state = env.reset(seed=SEED)[0]
-
-        controller = self.set_weights_into_controller(weights)
-        t_reward = 0
-        velocity_list = []
-        start_pos = np.mean(env.sim.object_pos_at_time(0, "robot")[0])
+    def evaluate(self, structure, controller_weights):
+        controller = self.set_weights_into_controller(controller_weights)
+        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=structure, connections=get_full_connectivity(structure))
+        state, _ = env.reset()
+        total_reward = 0
 
         for _ in range(STEPS):
-
-            # checkar primeiro o tamanho do tensor
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-
-            # Check and adjust input size if necessary
-            if state_tensor.shape[1] != self.input_size:
-                print(f"[WARNING] Input size mismatch: expected {self.input_size}, got {state_tensor.shape[1]}. Adjusting.")
-                self.input_size = state_tensor.shape[1]
-                controller = self.set_weights_into_controller(weights)
-
             action = controller(state_tensor).detach().numpy().flatten()
             state, reward, terminated, truncated, _ = env.step(action)
-            t_reward += reward
-
-            velocities = env.sim.vel_at_time(env.sim.get_time())
-            avg_x_velocity = np.mean(velocities[0])
-            velocity_list.append(avg_x_velocity)
-            
+            total_reward += reward
             if terminated or truncated:
                 break
 
-        end_pos = np.mean(env.sim.object_pos_at_time(env.sim.get_time(), "robot")[0])
-        distance_traveled = end_pos - start_pos
-        avg_velocity = np.mean(velocity_list)
-
-        distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
-        velocity_bonus = avg_velocity * 50
-        fall_penalty = -200 if terminated and not truncated else 0
-
-        final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
         env.close()
-        return final_fitness
+        return total_reward, controller_weights
 
+    
     def tournament_selection(self, population, fitnesses):
         winners = []
         for _ in range(self.pop_size):
@@ -203,7 +182,6 @@ class CoopCoevolution:
             
             return (best_struct.copy(), best_contr.copy()), best_fit
     
-
 robot_structure = generate_fixed_shape()
 
 # Now you can use this robot structure
@@ -214,7 +192,7 @@ output_size = env.action_space.shape[0]
 env.close()
 
 # Initialize CoopCoevolution with the generated robot structure
-evo = CoopCoevolution(input_size, output_size, fixed_shape=robot_structure)
+evo = CoopCoevolution(output_size, fixed_shape=robot_structure)
 evo.train()
 
 
