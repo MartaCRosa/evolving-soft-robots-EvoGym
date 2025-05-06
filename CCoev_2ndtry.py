@@ -152,6 +152,9 @@ env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connecti
 
 env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
 print(f"Action space shape: {env.action_space.shape}")
+print(f"Action space: {env.action_space}")
+print(f"Observation space shape: {env.observation_space.shape}")
+print(f"Observation space: {env.observation_space}")
 
 input_size = env.observation_space.shape[0]
 output_size = env.action_space.shape[0]
