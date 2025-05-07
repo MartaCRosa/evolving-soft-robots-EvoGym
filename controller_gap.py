@@ -67,80 +67,63 @@ def evaluate_fitness(weights, view=False):
         viewer.track_objects('robot')
 
     state = env.reset()[0]
-    z_heights = []
+    t_reward = 0
     velocity_list = []
-    airborne_frames = 0
-    active_time = 0
-
+    vertical_velocity_list = []
+    contact_loss_count = 0
     start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
-    z_com_prev = None
+    active_time = 0
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         action = brain(state_tensor).detach().numpy().flatten()
+
         if view:
             viewer.render('screen')
 
         state, reward, terminated, truncated, _ = env.step(action)
-
-        com_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
-        z_com = com_pos
-        z_heights.append(z_com)
-
-        # Estimate contact with floor using terrain elevation
-        floor_obs = env.get_floor_obs("robot", ["platform_1"], sight_dist=1, sight_range=5)
-        min_dist_to_floor = np.min(floor_obs)
-        if min_dist_to_floor > 0.2:  # adjust threshold as needed
-            airborne_frames += 1
-
-
-        # Vertical velocity (only positive is jump)
-        if z_com_prev is not None:
-            vertical_velocity = z_com - z_com_prev
-        else:
-            vertical_velocity = 0
-        z_com_prev = z_com
+        t_reward += reward
 
         velocities = sim.vel_at_time(sim.get_time())
         avg_x_velocity = np.mean(velocities[0])
+        avg_y_velocity = np.mean(velocities[1])
+
         velocity_list.append(avg_x_velocity)
+        vertical_velocity_list.append(abs(avg_y_velocity))
+
+        # --- Check for airborne state using get_floor_obs ---
+        floor_obs = env.get_floor_obs("robot", ["platform_1"], sight_dist=2, sight_range=5)
+        if floor_obs is not None and np.min(floor_obs) > 0.1:
+            contact_loss_count += 1
+
 
         active_time += 1
-
         if terminated or truncated:
             break
 
     end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
     distance_traveled = end_pos - start_pos
     avg_velocity = np.mean(velocity_list)
-    z_std = np.std(z_heights)
+    avg_vertical_velocity = np.mean(vertical_velocity_list)
 
-    # --- Fitness components ---
-    distance_bonus = distance_traveled * 50
-    hop_bonus = z_std * 100  # vertical movement indicates hopping
-    airtime_bonus = airborne_frames * 2
-    jump_speed_bonus = max(0, vertical_velocity) * 200
+    # --- Fitness calculation ---
+    distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
+    velocity_bonus = avg_velocity * 50
+    hop_bonus = avg_vertical_velocity * 50   # Encourages vertical motion
+    airborne_bonus = contact_loss_count * 1  # Encourages jumping off the ground
+
     fall_penalty = -200 if terminated and not truncated else 0
-    stiffness_penalty = -100 if z_std < 0.1 else 0  # discourage rigid motion
 
-    final_fitness = (
-        distance_bonus +
-        hop_bonus +
-        airtime_bonus +
-        jump_speed_bonus +
-        fall_penalty +
-        stiffness_penalty
-    )
+    final_fitness = t_reward + distance_bonus + velocity_bonus + hop_bonus + airborne_bonus + fall_penalty
 
     if view:
         viewer.close()
     env.close()
 
-    print(f"Distance: {distance_traveled:.2f}, Zstd: {z_std:.2f}, "
-          f"Airtime: {airborne_frames}, VZ: {vertical_velocity:.2f}, "
-          f"Final: {final_fitness:.2f}")
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Vertical Vel: {avg_vertical_velocity:.4f}, Airborne Frames: {contact_loss_count}, Time: {active_time}, Final: {final_fitness:.4f}")
 
     return final_fitness, distance_traveled
+
 
 
 # --- (mu + lambda) Evolution Strategy Setup ---
