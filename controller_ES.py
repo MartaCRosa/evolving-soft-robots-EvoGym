@@ -103,7 +103,7 @@ def evaluate_fitness(weights, view=False):
 
     print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
 
-    return final_fitness
+    return final_fitness, distance_traveled
 
 # --- (mu + lambda) Evolution Strategy Setup ---
 MU = 5
@@ -126,14 +126,15 @@ for generation in range(NUM_ITERATIONS):
     offspring = np.array(offspring)
     combined = np.vstack((population, offspring))
     
-    fitnesses = np.array([evaluate_fitness(reshape_weights(ind, brain)) for ind in combined])
+    fitnesses, distances = zip(*[evaluate_fitness(reshape_weights(ind, brain)) for ind in combined])
     top_indices = np.argsort(fitnesses)[-MU:]
 
     population = combined[top_indices]
     best_fitness = fitnesses[top_indices[-1]]
+    best_distance_in_generation = distances[top_indices[-1]]
 
     fitness_progress.append(best_fitness)
-    print(f"Generation {generation+1}/{NUM_ITERATIONS}, Best Fitness: {best_fitness:.5f}")
+    print(f"Generation {generation+1}/{NUM_ITERATIONS}, Best Fitness: {best_fitness:.5f}, Best Distance: {best_distance_in_generation:.5f}")
 
 # Set best weights
 best_individual = population[-1]
