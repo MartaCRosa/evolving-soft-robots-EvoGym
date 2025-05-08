@@ -24,19 +24,20 @@ def generate_fixed_shape():
     return np.random.choice([0, 1, 2, 3, 4], size=(5, 5))
 
 class CoopCoevolution:
-    def __init__(self, output_size, pop_size=6, tournament_size=3, fixed_shape=None):
+    def __init__(self, input_size, output_size, pop_size=6, tournament_size=3, fixed_shape=None):
         self.pop_size = pop_size
         self.tournament_size = tournament_size
+        self.input_size = input_size
         self.output_size = output_size
         self.fixed_shape = fixed_shape
 
         # Compute input_size based on one sample robot
-        sample_env = gym.make(SCENARIO, max_episode_steps=STEPS, body=self.fixed_shape, connections=get_full_connectivity(self.fixed_shape))
-        sample_state, _ = sample_env.reset()
-        self.input_size = len(sample_state) # para que o tamanho do input de match ao tamanho do state do observation space
-        print(f"Initialized with input_size = {self.input_size}")
+        #sample_env = gym.make(SCENARIO, max_episode_steps=STEPS, body=self.fixed_shape, connections=get_full_connectivity(self.fixed_shape))
+        #sample_state, _ = sample_env.reset()
+        #self.input_size = len(sample_state) # para que o tamanho do input de match ao tamanho do state do observation space
+        #print(f"Initialized with input_size = {self.input_size}")
 
-        sample_env.close()
+        #sample_env.close()
 
         self.pop_struct = [self.create_random_robot() for _ in range(pop_size)]
         self.pop_contr = [self.random_weights() for _ in range(pop_size)]
@@ -54,25 +55,25 @@ class CoopCoevolution:
 
 
     def random_weights(self):
-        controller = NeuralController(self.input_size, self.output_size)
-        return get_weights(controller)
+        controller = NeuralController(self.input_size, self.output_size) # creates new random controller based on the input size given from sample_env
+        return get_weights(controller) # gets the weights (random) of this controller
 
     def set_weights_into_controller(self, weights):
-        model = NeuralController(self.input_size, self.output_size)
-        set_weights(model, weights)
+        model = NeuralController(self.input_size, self.output_size) # creates a new controler
+        set_weights(model, weights) # puts the weights loaded to this function in the controller created (model)
         return model.eval()
     
 
     def evaluate(self, structure, controller_weights):
-        controller = self.set_weights_into_controller(controller_weights)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=structure, connections=get_full_connectivity(structure))
-        state, _ = env.reset()
-        print(f"State: {state}")
+        controller = self.set_weights_into_controller(controller_weights) # creates a controller with the weights 
+        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=structure, connections=get_full_connectivity(structure)) # creates a new environment 
+        state, _ = env.reset() # gets the observation space, the same as the input that goes in the input layer of the nn of the controller
+        #print(f"State: {state}")
         print(f"State shape: {state.shape}")
         total_reward = 0
 
         for _ in range(STEPS):
-            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # converts the state into a Pytorch tensor to feed it into the input layer of the controller nn
             print(f"state_tensor shape = {state_tensor.shape}, expected input_size = {self.input_size}")
             action = controller(state_tensor).detach().numpy().flatten()
             state, reward, terminated, truncated, _ = env.step(action)
@@ -192,7 +193,7 @@ robot_structure = generate_fixed_shape()
 
 # Now you can use this robot structure
 connectivity = get_full_connectivity(robot_structure)
-env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
+env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) # crio um environment
 
 print(f"Action space shape: {env.action_space.shape}")
 print(f"Action space: {env.action_space}")
@@ -201,7 +202,7 @@ print(f"Observation space: {env.observation_space}")
 env.close()
 
 # Initialize CoopCoevolution with the generated robot structure
-evo = CoopCoevolution(output_size=env.action_space.shape[0], fixed_shape=robot_structure)
+evo = CoopCoevolution(input_size = env.observation_space.shape[0], output_size=env.action_space.shape[0], fixed_shape=robot_structure) # defino o tamanho do output com base no envirnoment criado
 evo.train()
 
 
