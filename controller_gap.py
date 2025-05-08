@@ -8,14 +8,14 @@ from controller_neural import *
 import matplotlib.pyplot as plt
 
 # --- EvoGym Setup ---
-NUM_ITERATIONS = 20
+NUM_ITERATIONS = 10
 STEPS = 500
-SEED = 40
+SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
 
-#SCENARIO = 'DownStepper-v0'
-SCENARIO = 'ObstacleTraverser-v0'
+SCENARIO = 'GapJumper-v0'
+#SCENARIO = 'CaveCrawler-v0'
 
 robot_structure = np.array([ 
 [1,3,1,0,0],
@@ -27,6 +27,8 @@ robot_structure = np.array([
 
 connectivity = get_full_connectivity(robot_structure)
 env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
+#for i in range(env.sim.get_num_objects()):
+#    print(f"Object {i}: {env.sim.get_name(i)}")
 sim = env.sim
 input_size = env.observation_space.shape[0]
 output_size = env.action_space.shape[0]
@@ -54,6 +56,7 @@ def reshape_weights(flat_vector, model):
         idx += size
     return new_weights
 
+
 # --- Fitness Function ---
 def evaluate_fitness(weights, view=False):
     set_weights(brain, weights)
@@ -66,44 +69,62 @@ def evaluate_fitness(weights, view=False):
     state = env.reset()[0]
     t_reward = 0
     velocity_list = []
+    vertical_velocity_list = []
+    contact_loss_count = 0
     start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
     active_time = 0
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         action = brain(state_tensor).detach().numpy().flatten()
+
         if view:
             viewer.render('screen')
+
         state, reward, terminated, truncated, _ = env.step(action)
         t_reward += reward
 
         velocities = sim.vel_at_time(sim.get_time())
         avg_x_velocity = np.mean(velocities[0])
+        avg_y_velocity = np.mean(velocities[1])
+
         velocity_list.append(avg_x_velocity)
+        vertical_velocity_list.append(abs(avg_y_velocity))
+
+        # --- Check for airborne state using get_floor_obs ---
+        floor_obs = env.get_floor_obs("robot", ["platform_1"], sight_dist=2, sight_range=5)
+        if floor_obs is not None and np.min(floor_obs) > 0.1:
+            contact_loss_count += 1
+
 
         active_time += 1
-
         if terminated or truncated:
             break
 
     end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
     distance_traveled = end_pos - start_pos
     avg_velocity = np.mean(velocity_list)
+    avg_vertical_velocity = np.mean(vertical_velocity_list)
 
     # --- Fitness calculation ---
     distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
-    velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
+    velocity_bonus = avg_velocity * 50
+    hop_bonus = avg_vertical_velocity * 50   # Encourages vertical motion
+    airborne_bonus = contact_loss_count * 1  # Encourages jumping off the ground
+
     fall_penalty = -200 if terminated and not truncated else 0
 
-    final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
+    final_fitness = t_reward + distance_bonus + velocity_bonus + hop_bonus + airborne_bonus + fall_penalty
 
     if view:
         viewer.close()
     env.close()
 
-    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Vertical Vel: {avg_vertical_velocity:.4f}, Airborne Frames: {contact_loss_count}, Time: {active_time}, Final: {final_fitness:.4f}")
 
     return final_fitness, distance_traveled
+
+
 
 # --- (mu + lambda) Evolution Strategy Setup ---
 MU = 5
