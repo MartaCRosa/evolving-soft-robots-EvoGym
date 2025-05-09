@@ -131,7 +131,7 @@ mutatio_rate - rate under which mutation will occur
 The returned result of this function is the best robot out off all generation and the corresponding fitness
 """
 
-def genetic_algorithm(pop_size,mutation_rate):
+def genetic_algorithm(pop_size, mutation_rate):
 
     best_robot = None
     best_fitness = -float('inf')
@@ -290,9 +290,6 @@ def evaluate_fitness(robot_structure, view=False):
 
     except (ValueError, IndexError) as e:
         return 0.0
-
-
-
 
 
 
