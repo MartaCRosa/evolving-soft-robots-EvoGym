@@ -54,8 +54,8 @@ def reshape_weights(flat_vector, model):
         idx += size
     return new_weights
 
-# --- Fitness Function ---
-def evaluate_fitness(weights, view=False):
+# --- Fitness Function FOR DOWN-STEPPER ---
+def evaluate_fitness_stepper(weights, view=False):
     set_weights(brain, weights)
     env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
     sim = env.sim
@@ -67,7 +67,7 @@ def evaluate_fitness(weights, view=False):
     t_reward = 0
     velocity_list = []
     start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
-    active_time = 0
+    active_time = 0 # counter for active time - if simulation is terminated earlier this number will be lower than STEPS
 
     for _ in range(STEPS):
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
@@ -88,11 +88,11 @@ def evaluate_fitness(weights, view=False):
 
     end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
     distance_traveled = end_pos - start_pos
-    avg_velocity = np.mean(velocity_list)
+    avg_velocity = np.mean(velocity_list) # average x-velocity across all steps
 
     # --- Fitness calculation ---
     distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
-    velocity_bonus = avg_velocity * 50 if avg_velocity > 0 else avg_velocity * 50
+    velocity_bonus = avg_velocity * 50
     fall_penalty = -200 if terminated and not truncated else 0
 
     final_fitness = t_reward + distance_bonus + velocity_bonus + fall_penalty
@@ -102,6 +102,63 @@ def evaluate_fitness(weights, view=False):
     env.close()
 
     print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
+
+    return final_fitness, distance_traveled
+
+# --- Fitness Function FOR OBSTCALE-JUMPER ---
+def evaluate_fitness_obs(weights, view=False):
+    set_weights(brain, weights)
+    env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
+    sim = env.sim
+    if view:
+        viewer = EvoViewer(sim)
+        viewer.track_objects('robot')
+
+    state = env.reset()[0]
+    t_reward = 0
+    velocity_list = []
+    vertical_velocity_list = []
+    start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0])
+    active_time = 0
+
+    for _ in range(STEPS):
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        action = brain(state_tensor).detach().numpy().flatten()
+
+        if view:
+            viewer.render('screen')
+
+        state, reward, terminated, truncated, _ = env.step(action)
+        t_reward += reward
+
+        velocities = sim.vel_at_time(sim.get_time())
+        avg_x_velocity = np.mean(velocities[0])
+        avg_y_velocity = np.mean(velocities[1])
+
+        velocity_list.append(avg_x_velocity)
+        vertical_velocity_list.append((avg_y_velocity)) 
+
+        active_time += 1
+        if terminated or truncated:
+            break
+
+    end_pos = np.mean(sim.object_pos_at_time(sim.get_time(), "robot")[0])
+    distance_traveled = end_pos - start_pos
+    avg_velocity = np.mean(velocity_list)
+    avg_vertical_velocity = np.mean(vertical_velocity_list)  # vertical velocity across all steps
+
+    # --- Fitness calculation ---
+    distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
+    velocity_bonus = avg_velocity * 50
+    hop_bonus = avg_vertical_velocity * 50   # Encourages vertical motion
+    fall_penalty = -200 if terminated and not truncated else 0
+    final_fitness = t_reward + distance_bonus + velocity_bonus + hop_bonus + fall_penalty
+
+    if view:
+        viewer.close()
+    env.close()
+
+    print(f"Distance: {distance_traveled:.4f}, Velocity: {avg_velocity:.4f}, Vertical Vel: {avg_vertical_velocity:.4f}, Time: {active_time}, Final: {final_fitness:.4f}")
 
     return final_fitness, distance_traveled
 
@@ -126,7 +183,7 @@ for generation in range(NUM_ITERATIONS):
     offspring = np.array(offspring)
     combined = np.vstack((population, offspring))
     
-    fitnesses, distances = zip(*[evaluate_fitness(reshape_weights(ind, brain)) for ind in combined])
+    fitnesses, distances = zip(*[evaluate_fitness_obs(reshape_weights(ind, brain)) for ind in combined])
     top_indices = np.argsort(fitnesses)[-MU:]
 
     population = combined[top_indices]
@@ -167,5 +224,5 @@ def visualize_policy(weights):
     viewer.close()
     env.close()
 
-for _ in range(10):
+for _ in range(5):
     visualize_policy(reshape_weights(best_individual, brain))

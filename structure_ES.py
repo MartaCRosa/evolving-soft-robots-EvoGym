@@ -99,7 +99,6 @@ def evaluate_fitness(robot_structure, view=False):
         action_size = sim.get_dim_action_space('robot')
 
         successful = False
-        #reward_list = []  # Store rewards per step
         velocity_list = []  # Store velocity per step        
         start_pos = np.mean(sim.object_pos_at_time(0, "robot")[0]) # Get initial position (center of mass)
 
@@ -108,9 +107,7 @@ def evaluate_fitness(robot_structure, view=False):
             if view:
                 viewer.render('screen')
             ob, reward, terminated, truncated, info = env.step(actuation)  
-            #print(f"Step: {t}, Terminated: {terminated}, Truncated: {truncated}")
-            t_reward += reward  
-            #reward_list.append(reward)
+            t_reward += reward
 
             # Get velocity at this timestep
             velocities = sim.vel_at_time(sim.get_time())  # (2, n) array (x, y velocities)
@@ -132,10 +129,9 @@ def evaluate_fitness(robot_structure, view=False):
         if distance_traveled <= 0:
             distance_bonus = -20  # negative penalty to discourage backwards movement
         else:
-            distance_bonus = distance_traveled*2  # forward movement gets rewarded proportionaly to distance
-        #distance_bonus = max(distance_traveled * 1.3, 0) # reward proportional to the distance, reward = 0 if it's moving backwards
+            distance_bonus = distance_traveled *3  # forward movement gets rewarded proportionaly to distance
 
-        # Velocity bonus -> FROM CHATGPT
+        # Velocity bonus
         avg_velocity = np.mean(velocity_list)  # average x-velocity across all steps
         if avg_velocity <= 0:
             velocity_bonus = -10
@@ -144,20 +140,12 @@ def evaluate_fitness(robot_structure, view=False):
 
         # Actuator(-) bonus (interval of numbers that make sense for the environment) -> CHATGPT
         actuator_count = np.count_nonzero(robot_structure == 4)
-        if 2 <= actuator_count <= 4:  #2-4 walker, 3-7 bridge
+        if 2 <= actuator_count <= 5:  #2-5 walker, 3-7 bridge
             actuator_bonus = 10  
         else:
             actuator_bonus = -5  
 
         """
-        # Stability penalty (High variance == chaotic movement with sudden reward spikes and drops)
-        reward_variance = np.var(reward_list)
-        print(f"Reward Variance: {reward_variance}")
-        if reward_variance > 1:
-            stability_penalty = -10
-        else:
-            stability_penalty = 0  
-        
         # Leg Bonus (ensure legs at the sides and a gap in the middle)
         bottom_rows = robot_structure[3:, :]
         leg_bonus = 0
@@ -178,7 +166,7 @@ def evaluate_fitness(robot_structure, view=False):
         """
 
         # Final fitness score
-        final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus #+ stability_penalty + leg_bonus
+        final_fitness = t_reward + distance_bonus + velocity_bonus + actuator_bonus #+ leg_bonus
         #print("Distane traveled: ", distance_traveled, "Average velocity: ", avg_velocity, "Final Fitness: ", final_fitness)
         return max(final_fitness, 0)  
 
