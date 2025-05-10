@@ -22,21 +22,6 @@ MAX_GRID_SIZE = (5, 5)
 VOXEL_TYPES = [0, 1, 2, 3, 4]
 
 # --- Helper Functions ---
-def create_random_robot():
-    grid_size = (random.randint(*MIN_GRID_SIZE), random.randint(*MAX_GRID_SIZE))
-    robot, _ = sample_robot(grid_size)
-    return robot
-
-def mutate_robot(robot, max_attempts=5):
-    for _ in range(max_attempts):
-        child = copy.deepcopy(robot)
-        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
-        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])
-        child[x, y] = new_voxel
-        if is_connected(child):
-            return child
-    return robot  # fallback
-
 def flatten_weights(weights):
     return np.concatenate([w.flatten() for w in weights])
 
@@ -54,13 +39,40 @@ def set_weights(model, weights):
     for p, w in zip(model.parameters(), weights):
         p.data = torch.tensor(w, dtype=torch.float32)
 
-def evaluate(robot, weights, view=False):
+def mutate_controller_weights(weights, sigma=0.2):
+    return weights + np.random.normal(0, sigma, size=weights.shape) # mutates controller weights by adding gaussian noise
+
+def create_random_robot():
+    grid_size = (random.randint(*MIN_GRID_SIZE), random.randint(*MAX_GRID_SIZE))
+    robot, _ = sample_robot(grid_size)
+    return robot
+
+def create_controller_for_robot(robot):
+    conn = get_full_connectivity(robot)
+    env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot, connections=conn)
+    input_size = env.observation_space.shape[0]
+    output_size = env.action_space.shape[0]
+    env.close()
+
+    controller = NeuralController(input_size, output_size)
+    initial_weights = flatten_weights([p.data.numpy() for p in controller.parameters()])
+    return initial_weights, input_size, output_size
+
+def mutate_robot(robot):
+    for _ in range(3):
+        child = copy.deepcopy(robot)
+        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
+        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])
+        child[x, y] = new_voxel
+        if is_connected(child):
+            return child
+    return robot
+
+def evaluate(robot, weights, input_size, output_size, view=False):
     try:
         conn = get_full_connectivity(robot)
         env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot, connections=conn)
         sim = env.sim
-        input_size = env.observation_space.shape[0]
-        output_size = env.action_space.shape[0]
         controller = NeuralController(input_size, output_size)
         set_weights(controller, weights)
 
@@ -101,7 +113,6 @@ def evaluate(robot, weights, view=False):
         avg_velocity = np.mean(velocity_list)
         avg_vertical_velocity = np.mean(vertical_velocity_list)
 
-        # --- Fitness calculation ---
         distance_bonus = distance_traveled * 20 if distance_traveled > 0 else distance_traveled * 50
         velocity_bonus = avg_velocity * 50
         hop_bonus = avg_vertical_velocity * 60
@@ -120,103 +131,101 @@ def evaluate(robot, weights, view=False):
         print("Evaluation error:", e)
         return 0.0
 
+import os
 
-# --- Initialization ---
-print("Initializing robot population...")
-robot_population = [create_random_robot() for _ in range(MU)]
+def run_experiment(run_id, num_generations, save_gif=False):
+    robot_population = []
+    controller_population = []
+    input_output_sizes = []
+    fitness_history = []
 
-# Get controller dimensions from a real evaluation
-print("Determining controller shape from sample robot...")
-valid_robot = None
-for robot in robot_population:
-    try:
-        conn = get_full_connectivity(robot)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot, connections=conn)
-        input_size = env.observation_space.shape[0]
-        output_size = env.action_space.shape[0]
-        env.close()
-        valid_robot = robot
-        break
-    except Exception as e:
-        continue
+    for _ in range(MU):
+        robot = create_random_robot()
+        controller, input_size, output_size = create_controller_for_robot(robot)
+        robot_population.append(robot)
+        controller_population.append(controller)
+        input_output_sizes.append((input_size, output_size))
 
-if valid_robot is None:
-    raise RuntimeError("Could not create a valid robot for controller initialization.")
+    for gen in range(num_generations):
+        print(f"\n[Run {run_id}] --- Generation {gen+1} ---")
 
-controller_template = NeuralController(input_size, output_size)
-initial_weights = flatten_weights([p.data.numpy() for p in controller_template.parameters()])
-controller_population = [initial_weights + np.random.normal(0, SIGMA, size=initial_weights.shape) for _ in range(MU)]
+        fitness_scores = []
+        for robot, controller, (input_size, output_size) in zip(robot_population, controller_population, input_output_sizes):
+            weights = reshape_weights(controller, NeuralController(input_size, output_size))
+            fitness = evaluate(robot, weights, input_size, output_size)
+            print(f"Fitness: {fitness}")
+            fitness_scores.append(fitness)
 
-fitness_history = []
+        robot_offspring = []
+        controller_offspring = []
+        offspring_ios = []
 
-# --- Coevolution Loop ---
-for gen in range(NUM_GENERATIONS):
-    print(f"\n--- Generation {gen+1} ---")
-    
-    # --- Evaluate current population ---
-    fitness_scores = []
-    for robot in robot_population:
-        controller = random.choice(controller_population)
-        try:
-            fitness = evaluate(robot, reshape_weights(controller, controller_template))
-        except Exception as e:
-            print("Evaluation error:", e)
-            fitness = 0.0
-        fitness_scores.append(fitness)
+        for _ in range(LAMBDA):
+            idx = random.randint(0, MU - 1)
+            parent_robot = robot_population[idx]
+            parent_controller = controller_population[idx]
+            input_size, output_size = input_output_sizes[idx]
 
-    # --- Generate offspring ---
-    robot_offspring = [mutate_robot(random.choice(robot_population)) for _ in range(LAMBDA)]
-    controller_offspring = [
-        random.choice(controller_population) + np.random.normal(0, SIGMA, size=initial_weights.shape)
-        for _ in range(LAMBDA)
-    ]
+            child_robot = mutate_robot(parent_robot)
 
-    # --- Evaluate offspring cooperatively ---
-    robot_offspring_fitness = []
-    for r in robot_offspring:
-        try:
-            fitness = evaluate(r, reshape_weights(random.choice(controller_population), controller_template))
-        except Exception as e:
-            print("Robot offspring eval error:", e)
-            fitness = 0.0
-        robot_offspring_fitness.append(fitness)
+            conn = get_full_connectivity(child_robot)
+            env = gym.make(SCENARIO, max_episode_steps=STEPS, body=child_robot, connections=conn)
+            child_input_size = env.observation_space.shape[0]
+            child_output_size = env.action_space.shape[0]
+            env.close()
 
-    controller_offspring_fitness = []
-    for c in controller_offspring:
-        try:
-            fitness = evaluate(random.choice(robot_population), reshape_weights(c, controller_template))
-        except Exception as e:
-            print("Controller offspring eval error:", e)
-            fitness = 0.0
-        controller_offspring_fitness.append(fitness)
+            if (child_input_size == input_size) and (child_output_size == output_size): 
+                child_controller = mutate_controller_weights(np.copy(parent_controller), sigma=SIGMA)
+            else:
+                child_controller, child_input_size, child_output_size = create_controller_for_robot(child_robot)
 
-    # --- Selection ---
-    combined_robots = robot_population + robot_offspring
-    combined_robot_fitness = fitness_scores + robot_offspring_fitness
-    top_robot_idx = np.argsort(combined_robot_fitness)[-MU:]
-    robot_population = [combined_robots[i] for i in top_robot_idx]
+            robot_offspring.append(child_robot)
+            controller_offspring.append(child_controller)
+            offspring_ios.append((child_input_size, child_output_size))
 
-    combined_controllers = controller_population + controller_offspring
-    combined_controller_fitness = fitness_scores + controller_offspring_fitness
-    top_controller_idx = np.argsort(combined_controller_fitness)[-MU:]
-    controller_population = [combined_controllers[i] for i in top_controller_idx]
+        offspring_fitness = []
+        for robot, controller, (input_size, output_size) in zip(robot_offspring, controller_offspring, offspring_ios):
+            weights = reshape_weights(controller, NeuralController(input_size, output_size))
+            fitness = evaluate(robot, weights, input_size, output_size)
+            print(f"Fitness: {fitness}")
+            offspring_fitness.append(fitness)
 
-    best_fitness = max(fitness_scores)
-    fitness_history.append(best_fitness)
-    print(f"Best Fitness: {best_fitness:.4f}")
+        combined_robots = robot_population + robot_offspring
+        combined_controllers = controller_population + controller_offspring
+        combined_ios = input_output_sizes + offspring_ios
+        combined_fitness = fitness_scores + offspring_fitness
 
-# --- Plot Results ---
-plt.plot(fitness_history, label='Best Fitness')
-plt.xlabel("Generation")
-plt.ylabel("Fitness")
-plt.title("Cooperative Coevolution Progress")
-plt.grid()
-plt.legend()
-plt.tight_layout()
-plt.show()
+        top_idx = np.argsort(combined_fitness)[-MU:]
+        robot_population = [combined_robots[i] for i in top_idx]
+        controller_population = [combined_controllers[i] for i in top_idx]
+        input_output_sizes = [combined_ios[i] for i in top_idx]
 
-# --- Final Visualization ---
-best_robot = robot_population[-1]
-best_controller = controller_population[-1]
-for _ in range(3):
-    evaluate(best_robot, reshape_weights(best_controller, controller_template), view=True)
+        best_fitness = max(combined_fitness)
+        fitness_history.append(best_fitness)
+        print(f"Best Fitness: {best_fitness:.4f}")
+
+    # --- Save Plot ---
+    os.makedirs("results", exist_ok=True)
+    plt.figure()
+    plt.plot(fitness_history, label=f'Run {run_id}')
+    plt.xlabel("Generation")
+    plt.ylabel("Fitness")
+    plt.title(f"Fitness Evolution - Run {run_id}")
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"results/fitness_run_{run_id}.png")
+    plt.close()
+
+    # --- Save GIF ---
+    if save_gif:
+        best_robot = robot_population[-1]
+        best_controller = controller_population[-1]
+        input_size, output_size = input_output_sizes[-1]
+        weights = reshape_weights(best_controller, NeuralController(input_size, output_size))
+        evaluate(best_robot, weights, input_size, output_size, view=True)  # Will auto-save if EvoViewer handles it
+
+# --- Run 5 Experiments ---
+for run in range(1, 6):
+    run_experiment(run_id=run, num_generations=NUM_GENERATIONS, save_gif=True)
+

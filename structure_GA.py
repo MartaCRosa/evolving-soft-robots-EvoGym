@@ -8,24 +8,14 @@ import utils
 from controllers_fixed import *
 import matplotlib.pyplot as plt
 
-# abordagens nao validas no 3.1
-# CMA-ES
-# evolução diferencial
-
-# começar com algo simples e dps alterar pontos fracos
-# vantagem representação de inteiros - 
-# individuos invalidos - vai fora e gera outro/fitness negativa
-
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 50 #250  # Number of generations to evolve #hyperparametro
-#comecar com grelha pequena e dps explorar
+NUM_GENERATIONS = 50 #250  # Number of generations to evolve # hiperparametro
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid # manter fixo para a evolução da estrutura
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
-STEPS = 500 #fixo
+STEPS = 500 
 
 #SCENARIO = 'Walker-v0'
-SCENARIO = 'BridgeWalker-v0' #dá jeito ter atuadores para bridge
-#cão ao contrario e sapo
+SCENARIO = 'BridgeWalker-v0' 
 
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-) #nao mexer
@@ -35,17 +25,190 @@ CONTROLLER = alternating_gait
 #CONTROLLER = hopping_motion
 
 
+# ---- INITIALIZATION ----
+def create_random_robot():
+    """Generate a valid random robot structure."""
+    
+    grid_size = (random.randint(MIN_GRID_SIZE[0], MAX_GRID_SIZE[0]), random.randint(MIN_GRID_SIZE[1], MAX_GRID_SIZE[1]))
+    random_robot, _ = sample_robot(grid_size) #podemos criar nós o robot
+    return random_robot
+
+# ---- GENETIC ALGORITHM (GA) IMPLEMENTATION ---
+
+# Crossover Function
+"""
+-> This function combines (crossovers) two given robots (parents) by slicing them horizontally at a random row
+and combining the top part of robot1 (parent1) with the bottom part of robot2 (parent2) together, resulting in one child.
+
+Parameters:
+parent1 - robot chosen from population to be a parent of the resulting crossedover child
+parent2 - different robot from parent1 also chosen from population to be the second parent for the crossover
+
+In order to avoid resulting disconnected robots from crossover, this function tries to perform crossover 3 times.
+If after 3 attempts the child is still not connected the function will return a copy of the parent whose fitness is best
+
+"""
+def crossover(parent1, parent2):
+    
+    # Check if robots have the same shape to avoid conflicting crossover
+    if parent1.shape != parent2.shape:
+        raise ValueError("Parents must have the same shape!")
+
+    rows, cols = parent1.shape # Gets the rows and cols reference from parent1
+
+    # Loop that tries to effectively do crossover 3 times
+    for i in range(3): 
+            crossover_point = random.randint(1, rows - 1) # Random row is chosen to be the crossover point
+            child = np.vstack((parent1[:crossover_point, :], parent2[crossover_point:, :]))  # The child is the combination of the top part of parent1 and the bottom part of parent2
+            if is_connected(child):
+                return child # Returns child in case it is connected
+            
+    # In case the child is not connected, the fitness of both parents is evaluated and a copy of the parent with best fitness is returned instead
+    return copy.deepcopy(parent1) if evaluate_fitness(parent1) >= evaluate_fitness(parent2) else copy.deepcopy(parent2)
+
+
+# Mutation Function
+"""
+-> This Function mutates robots by changing randomly the type of a random voxel.
+For this evolutionary algorithm, mutation only happens for a given mutation rate. If a generated random float value
+is inferior to the set mutation rate, mutation occurs.
+
+Parameters:
+parent - robot to be mutated
+mutation_rate - float value of mutation rate under which mutation occurs
+
+The voxel to be mutated is chosen randomly. 
+The robot mutated is returned as a result of this function only if the robot is connected. If not
+the original parent is returned instead.
+"""
+
+def mutate_robot(parent, mutation_rate):
+    
+    if random.random() < mutation_rate:  # Check mutation probability
+        child = copy.deepcopy(parent) # Copies the parent to ensure it is not the parent being mutated, but a newly generated robot 
+        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1]) # Random chosen voxel to be mutated
+        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Random choice of voxel type that will replace the mutated voxel and ensures the chosen type is not the same as the voxel being mutated
+        child[x, y] = new_voxel 
+        return child if is_connected(child) else parent  # Ensure connectivity
+    
+    return parent # If the mutated child is not connected the parent is returned in place
+
+# Tournament selection function
+"""
+-> This function is intended for the selection of robot parents that will be crossedover to generate a child for the next offspring.
+Selection of parents happens in a tournament: k random robots are selected out of the current generation population and 
+from them, the robot with best fitness will be returned as a parent.
+
+Parameters:
+population - the population of the current generation from which parents will be chosen
+k - number of randomly selected individuals for tournament from the population
+"""
+
+def tournament_selection(population, k=5):
+
+    selected_robots = random.sample(population,k) # Random selection of k robots from the population
+    fitness_scores = [(robot,evaluate_fitness(robot)) for robot in selected_robots] # Evaluation of the selected robots
+
+    robots_sorted = sorted(fitness_scores, key=lambda x: x[1], reverse=True) # Sorting of the selected robots' fitnesses
+
+    best_robot = robots_sorted[0][0] # Selection of the best robot
+    
+    return copy.deepcopy(best_robot) # Returns a copy of the best choosen robot
+
+# Genetic algorithm function
+"""
+-> This function cointains the logic of the Genetic Algoritm:
+This Genetic Algorithm works by using selection with elitism, crossover and mutation.
+The first generation population is generated randomly. The next generations' populations are generated in the following way:
+Keeping the 2 best robots (elitism) of the current generation and filling the rest offspring with robots that resulted from crossover and mutation.
+Crossover happens always and the parents of crossover are selected through tournament selection. The generated child undergoes mutation
+given a certain mutation rate.
+
+Parameters:
+pop_size - size of robots population of every generation
+mutatio_rate - rate under which mutation will occur
+
+The returned result of this function is the best robot out off all generation and the corresponding fitness
+"""
+
+def genetic_algorithm(pop_size, mutation_rate):
+
+    best_robot = None
+    best_fitness = -float('inf')
+
+    ELITISM_COUNT = 2
+
+    population = [create_random_robot() for _ in range(pop_size)] # Inicialization of population
+    fitness_scores = [evaluate_fitness(robot) for robot in population] # Evaluation of the fitnesses of the population initialization
+
+    best_fitness_over_time = [] # To store the fitness of the best robots over generations
+    avg_fitness_over_time = [] # To store the average fitness for each generation
+
+    for it in range(NUM_GENERATIONS):
+        population, fitness_scores = zip(*sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True)) # Every generation of the GA starts by paring the robots of that generation population with their fitness and sorting those pairs in ascending order of fitness
+
+        if fitness_scores[0] == 0:  # If the best fitness is zero the algorithm stops running
+            break 
+
+        new_population = [copy.deepcopy(robot) for robot in population[:ELITISM_COUNT]] # The population of the next generation is initiazed with the top 2 robots of the current generation population unchanged
+
+        while len(new_population) < pop_size: # Loop that will fill the next generation population by creating an offspring resultinf from crossover and mutation
+            p1 = tournament_selection(population)
+            p2 = tournament_selection(population)
+            child = crossover(p1, p2)
+            child = mutate_robot(child, mutation_rate)
+            new_population.append(child)
+
+        population = new_population # The current generation's population is replaced with the population generated through elitism, crossover and mutation
+        fitness_scores = [evaluate_fitness(robot) for robot in population]  # Fitnesses are recalculated in order to correspond to the new population
+
+        best_fitness = max(fitness_scores) 
+        avg_fitness = np.mean(fitness_scores)
+
+
+        best_fitness_over_time.append(best_fitness)
+        avg_fitness_over_time.append(avg_fitness)
+
+
+        print(f"Iteration {it + 1}: Best Fitness = {max(fitness_scores)}")
+
+    best_index = np.argmax(fitness_scores)
+    best_robot = population[best_index]
+    best_fitness = fitness_scores[best_index]
+
+    # Plot fitness vs. generations
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(NUM_GENERATIONS), best_fitness_over_time, label="Best Fitness", color="blue")
+    plt.plot(range(NUM_GENERATIONS), avg_fitness_over_time, label="Average Fitness", color="orange", linestyle="dashed")
+    
+    plt.xlabel("Generations")
+    plt.ylabel("Fitness")
+    plt.title("Genetic Algorithm: Fitness Progression")
+    plt.legend()
+    plt.grid()
+
+    # Save the plot to a file
+    plot_filename = f'task1_walker/GA/50gen__bridge_fitness_progression_run_{i+3}.png'  # Save the plot as a .png file
+    plt.savefig(plot_filename)
+
+    # Close the plot
+    plt.close()
+
+
+    return best_robot, best_fitness
+
+
 # ---- EVALUATION FUNCTION ----
 def evaluate_fitness(robot_structure, view=False):    
     try:
         connectivity = get_full_connectivity(robot_structure)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) #gym cria cenario 
+        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity) # Creation of the environment in which the robot will be evaluated 
         env.reset()
-        sim = env.sim  # criar cenario de raiz e por la o robot
+        sim = env.sim 
         viewer = EvoViewer(sim)
         viewer.track_objects('robot')
         t_reward = 0
-        action_size = sim.get_dim_action_space('robot')  # Get correct action size
+        action_size = sim.get_dim_action_space('robot')  
 
         successful = False
         #reward_list = []  # Store rewards per step
@@ -129,123 +292,7 @@ def evaluate_fitness(robot_structure, view=False):
         return 0.0
 
 
-# ---- INITIALIZATION ----
-def create_random_robot():
-    """Generate a valid random robot structure."""
-    
-    grid_size = (random.randint(MIN_GRID_SIZE[0], MAX_GRID_SIZE[0]), random.randint(MIN_GRID_SIZE[1], MAX_GRID_SIZE[1]))
-    random_robot, _ = sample_robot(grid_size) #podemos criar nós o robot
-    return random_robot
 
-
-# Algoritmo genetico
-
-
-def crossover(parent1, parent2):
-    
-    # garantir que os pais tem a mesma forma e tamanho
-    if parent1.shape != parent2.shape:
-        raise ValueError("Parents must have the same shape!")
-
-    rows, cols = parent1.shape
-
-    for i in range(3): #vai experimentar 3 vezes crossover se nao estiver a conseguir fazer
-            crossover_point = random.randint(1, rows - 1)    # escolher um ponto random de crossover
-            child = np.vstack((parent1[:crossover_point, :], parent2[crossover_point:, :]))  # chil é criado combinando as duas partes dos pais a partir do ponto de crossover selecionado
-            if is_connected(child):
-                return child
-            
-    # caso o child nao esteja conected avalia a fitness dos pais e retorna o melhor deles
-    return copy.deepcopy(parent1) if evaluate_fitness(parent1) >= evaluate_fitness(parent2) else copy.deepcopy(parent2)
-
-def mutate_robot(parent,mutation_rate):
-    """Mutate the structure by changing a random voxel type."""
-
-    if random.random() < mutation_rate:  # Check mutation probability
-        child = copy.deepcopy(parent)
-        x, y = np.random.randint(0, child.shape[0]), np.random.randint(0, child.shape[1])
-        new_voxel = random.choice([v for v in VOXEL_TYPES if v != child[x, y]])  # Ensure mutation occurs
-        child[x, y] = new_voxel
-        return child if is_connected(child) else parent  # Ensure connectivity
-    
-    return parent # se nao mutar devolve o original
-
-def tournament_selection(population, k=5):
-
-    robots_selecionados = random.sample(population,k)
-    fitness_scores = [(robot,evaluate_fitness(robot)) for robot in robots_selecionados]
-
-    robots_sorted = sorted(fitness_scores, key=lambda x: x[1], reverse=True)
-
-    melhor_robot = robots_sorted[0][0]
-    
-    return copy.deepcopy(melhor_robot)
-
-def genetic_algorithm(pop_size,mutation_rate):
-
-    best_robot = None
-    best_fitness = -float('inf')
-
-    ELITISM_COUNT = 2
-
-    population = [create_random_robot() for _ in range(pop_size)]
-    fitness_scores = [evaluate_fitness(robot) for robot in population]
-
-    best_fitness_over_time = []
-    avg_fitness_over_time = []
-
-    for it in range(NUM_GENERATIONS):
-        population, fitness_scores = zip(*sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True))
-
-        if fitness_scores[0] == 0:
-            break
-
-        new_population = [copy.deepcopy(robot) for robot in population[:ELITISM_COUNT]]
-
-        while len(new_population) < pop_size:
-            p1 = tournament_selection(population)
-            p2 = tournament_selection(population)
-            child = crossover(p1, p2)
-            child = mutate_robot(child, mutation_rate)
-            new_population.append(child)
-
-        population = new_population
-        fitness_scores = [evaluate_fitness(robot) for robot in population]  # Recompute fitness
-
-        best_fitness = max(fitness_scores)
-        avg_fitness = np.mean(fitness_scores)
-
-
-        best_fitness_over_time.append(best_fitness)
-        avg_fitness_over_time.append(avg_fitness)
-
-
-        print(f"Iteration {it + 1}: Best Fitness = {max(fitness_scores)}")
-
-    best_index = np.argmax(fitness_scores)
-    best_robot = population[best_index]
-    best_fitness = fitness_scores[best_index]
-
-    # Plot fitness vs. generations
-    plt.figure(figsize=(8, 5))
-    plt.plot(range(NUM_GENERATIONS), best_fitness_over_time, label="Best Fitness", color="blue")
-    plt.plot(range(NUM_GENERATIONS), avg_fitness_over_time, label="Average Fitness", color="orange", linestyle="dashed")
-    
-    plt.xlabel("Generations")
-    plt.ylabel("Fitness")
-    plt.title("Genetic Algorithm: Fitness Progression")
-    plt.legend()
-    plt.grid()
-
-    # Save the plot to a file
-    plot_filename = f'task1_walker/GA/50gen__bridge_fitness_progression_run_{i+3}.png'  # Save the plot as a .png file
-    plt.savefig(plot_filename)
-
-    # Close the plot
-    plt.close()
-
-
-    return best_robot, best_fitness
 
 # ----- RUN LOOP --------- #
 
