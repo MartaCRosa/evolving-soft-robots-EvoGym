@@ -9,7 +9,7 @@ from controller_neural import NeuralController
 import matplotlib.pyplot as plt
 
 # --- Parameters ---
-NUM_GENERATIONS = 200
+NUM_GENERATIONS = 10
 MU = 5
 LAMBDA = 10
 STEPS = 500
@@ -131,103 +131,101 @@ def evaluate(robot, weights, input_size, output_size, view=False):
         print("Evaluation error:", e)
         return 0.0
 
-# --- Initialization ---
-print("Initializing robot-controller population...")
-robot_population = []
-controller_population = []
-input_output_sizes = []
+import os
 
-for _ in range(MU):
-    robot = create_random_robot()
-    controller, input_size, output_size = create_controller_for_robot(robot)
-    robot_population.append(robot)
-    controller_population.append(controller)
-    input_output_sizes.append((input_size, output_size))
+def run_experiment(run_id, num_generations, save_gif=False):
+    robot_population = []
+    controller_population = []
+    input_output_sizes = []
+    fitness_history = []
 
-fitness_history = []
+    for _ in range(MU):
+        robot = create_random_robot()
+        controller, input_size, output_size = create_controller_for_robot(robot)
+        robot_population.append(robot)
+        controller_population.append(controller)
+        input_output_sizes.append((input_size, output_size))
 
-# --- Coevolution Loop ---
-for gen in range(NUM_GENERATIONS):
-    print(f"\n--- Generation {gen+1} ---")
+    for gen in range(num_generations):
+        print(f"\n[Run {run_id}] --- Generation {gen+1} ---")
 
-    fitness_scores = []
-    for robot, controller, (input_size, output_size) in zip(robot_population, controller_population, input_output_sizes):
-        weights = reshape_weights(controller, NeuralController(input_size, output_size))
-        fitness = evaluate(robot, weights, input_size, output_size)
-        print(f"Fitness: {fitness}")
-        fitness_scores.append(fitness)
+        fitness_scores = []
+        for robot, controller, (input_size, output_size) in zip(robot_population, controller_population, input_output_sizes):
+            weights = reshape_weights(controller, NeuralController(input_size, output_size))
+            fitness = evaluate(robot, weights, input_size, output_size)
+            print(f"Fitness: {fitness}")
+            fitness_scores.append(fitness)
 
-    # --- Generate Offspring ---
-    robot_offspring = []
-    controller_offspring = []
-    offspring_ios = []
+        robot_offspring = []
+        controller_offspring = []
+        offspring_ios = []
 
-    for _ in range(LAMBDA):
-        idx = random.randint(0, MU - 1)
-        parent_robot = robot_population[idx]
-        parent_controller = controller_population[idx]
-        input_size, output_size = input_output_sizes[idx]
+        for _ in range(LAMBDA):
+            idx = random.randint(0, MU - 1)
+            parent_robot = robot_population[idx]
+            parent_controller = controller_population[idx]
+            input_size, output_size = input_output_sizes[idx]
 
-        child_robot = mutate_robot(parent_robot)
+            child_robot = mutate_robot(parent_robot)
 
-        # Check new input and output sizes of the mutated robot
-        conn = get_full_connectivity(child_robot)
-        env = gym.make(SCENARIO, max_episode_steps=STEPS, body=child_robot, connections=conn)
-        child_input_size = env.observation_space.shape[0]
-        child_output_size = env.action_space.shape[0]
-        env.close()
+            conn = get_full_connectivity(child_robot)
+            env = gym.make(SCENARIO, max_episode_steps=STEPS, body=child_robot, connections=conn)
+            child_input_size = env.observation_space.shape[0]
+            child_output_size = env.action_space.shape[0]
+            env.close()
 
-        # If the input and output sizes of the robot child match the robot parent that means the controller of the parent is still a good
-        # fit for the oirginal controller and in this case the controller is just mutated. Else a new controller is created
-        if (child_input_size == input_size) and (child_output_size == output_size): 
-            #print(f"Child robot is still fit for original controller. Controller will be mutated.")
-            child_controller = mutate_controller_weights(np.copy(parent_controller), sigma=SIGMA)
-        else:
-            #print(f"Child robot is no longer fit for original controller. A new fitted controller will be generated.")
-            child_controller, child_input_size, child_output_size = create_controller_for_robot(child_robot)
+            if (child_input_size == input_size) and (child_output_size == output_size): 
+                child_controller = mutate_controller_weights(np.copy(parent_controller), sigma=SIGMA)
+            else:
+                child_controller, child_input_size, child_output_size = create_controller_for_robot(child_robot)
 
-        robot_offspring.append(child_robot)
-        controller_offspring.append(child_controller)
-        offspring_ios.append((child_input_size, child_output_size))
+            robot_offspring.append(child_robot)
+            controller_offspring.append(child_controller)
+            offspring_ios.append((child_input_size, child_output_size))
 
-    # --- Evaluate Offspring ---
-    offspring_fitness = []
-    for robot, controller, (input_size, output_size) in zip(robot_offspring, controller_offspring, offspring_ios):
-        weights = reshape_weights(controller, NeuralController(input_size, output_size))
-        fitness = evaluate(robot, weights, input_size, output_size)
-        print(f"Fitness: {fitness}")
-        offspring_fitness.append(fitness)
+        offspring_fitness = []
+        for robot, controller, (input_size, output_size) in zip(robot_offspring, controller_offspring, offspring_ios):
+            weights = reshape_weights(controller, NeuralController(input_size, output_size))
+            fitness = evaluate(robot, weights, input_size, output_size)
+            print(f"Fitness: {fitness}")
+            offspring_fitness.append(fitness)
 
-    # --- Selection ---
-    combined_robots = robot_population + robot_offspring
-    combined_controllers = controller_population + controller_offspring
-    combined_ios = input_output_sizes + offspring_ios
-    combined_fitness = fitness_scores + offspring_fitness
+        combined_robots = robot_population + robot_offspring
+        combined_controllers = controller_population + controller_offspring
+        combined_ios = input_output_sizes + offspring_ios
+        combined_fitness = fitness_scores + offspring_fitness
 
-    top_idx = np.argsort(combined_fitness)[-MU:]
-    robot_population = [combined_robots[i] for i in top_idx]
-    controller_population = [combined_controllers[i] for i in top_idx]
-    input_output_sizes = [combined_ios[i] for i in top_idx]
+        top_idx = np.argsort(combined_fitness)[-MU:]
+        robot_population = [combined_robots[i] for i in top_idx]
+        controller_population = [combined_controllers[i] for i in top_idx]
+        input_output_sizes = [combined_ios[i] for i in top_idx]
 
-    best_fitness = max(combined_fitness)
-    fitness_history.append(best_fitness)
-    print(f"Best Fitness: {best_fitness:.4f}")
+        best_fitness = max(combined_fitness)
+        fitness_history.append(best_fitness)
+        print(f"Best Fitness: {best_fitness:.4f}")
 
-# --- Plot ---
-plt.plot(fitness_history, label='Best Fitness')
-plt.xlabel("Generation")
-plt.ylabel("Fitness")
-plt.title("Coevolution Progress")
-plt.grid()
-plt.legend()
-plt.tight_layout()
-plt.show()
+    # --- Save Plot ---
+    os.makedirs("results", exist_ok=True)
+    plt.figure()
+    plt.plot(fitness_history, label=f'Run {run_id}')
+    plt.xlabel("Generation")
+    plt.ylabel("Fitness")
+    plt.title(f"Fitness Evolution - Run {run_id}")
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"results/fitness_run_{run_id}.png")
+    plt.close()
 
-# --- Final Evaluation ---
-best_robot = robot_population[-1]
-best_controller = controller_population[-1]
-input_size, output_size = input_output_sizes[-1]
+    # --- Save GIF ---
+    if save_gif:
+        best_robot = robot_population[-1]
+        best_controller = controller_population[-1]
+        input_size, output_size = input_output_sizes[-1]
+        weights = reshape_weights(best_controller, NeuralController(input_size, output_size))
+        evaluate(best_robot, weights, input_size, output_size, view=True)  # Will auto-save if EvoViewer handles it
 
-for _ in range(3):
-    weights = reshape_weights(best_controller, NeuralController(input_size, output_size))
-    evaluate(best_robot, weights, input_size, output_size, view=True)
+# --- Run 5 Experiments ---
+for run in range(1, 6):
+    run_experiment(run_id=run, num_generations=NUM_GENERATIONS, save_gif=True)
+
