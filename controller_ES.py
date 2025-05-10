@@ -165,7 +165,7 @@ def evaluate_fitness_obs(weights, view=False):
 # --- (mu + lambda) Evolution Strategy Setup ---
 MU = 5
 LAMBDA = 10
-SIGMA = 0.2
+SIGMA = 0.2  # Standard deviation for mutation -> concept from CHATGPT
 
 initial_weights = flatten_weights(get_weights(brain))
 population = np.array([initial_weights + np.random.normal(0, SIGMA, size=initial_weights.shape) for _ in range(MU)]) 
