@@ -1,6 +1,6 @@
 # EvoGym Robot Evolution
 
-This project explores evolutionary algorithms to optimize soft robots in [EvoGym](https://evogym.org/). It covers three core areas:
+This project explores evolutionary algorithms to optimize soft robots in [EvoGym](https://evolutiongym.github.io/). It covers three core areas:
 
 ## Project Topics
 
@@ -24,4 +24,4 @@ This project explores evolutionary algorithms to optimize soft robots in [EvoGym
 
 ---
 
-For more info on EvoGym, visit [evogym.org](https://evogym.org/).
+For more info on EvoGym, visit [evolutiongym.github](https://evolutiongym.github.io/).
