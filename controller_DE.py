@@ -164,7 +164,7 @@ def crossover(target, variant):
     trial = np.copy(target)
     for i in range(len(target)):
         if random.random() < CROSSV_RATE or i == random.randint(0, dim - 1):
-            trial[i] = variant[i] #when this condition is not met the part of the trial[i] remains equal to the target[i]
+            trial[i] = variant[i]  # when this condition is not met the part of the trial[i] remains equal to the target[i]
     return trial
 
 # ----- DE LOOP ------
@@ -224,7 +224,6 @@ for gen in range(NUM_GENERATIONS):
     fitness_history.append(best_fitness)
     avg_fitness_history.append(avg_fitness)
     best_distance_history.append(best_distance)
-    
 
 # --- Final best weights ---
 best_weights = reshape_weights(population[best_idx], brain)
