@@ -1,19 +1,27 @@
-## Inicializar: 
-- git init
-- git pull origin main
-## Ver o que foi modificado: 
-- git status
-## Adicionar tudo o que foi modificado ao commit: 
-- git add .
-## Mensagem para o commit: 
-- git commit -m " ..."
-## Dar push (CERTIFICAR QUE VAI PARA O BRANCH CERTO): 
-- git push origin main
-## Verificar se não há ficheiros modificados: 
-- git status
+# EvoGym Robot Evolution
 
-## Problemas de merging:
-- git pull origin main --rebase
-or
-- git pull origin main  
-- git merge main   ((If you want to merge instead of rebase))
+This project explores evolutionary algorithms to optimize soft robots in [EvoGym](https://evogym.org/). It covers three core areas:
+
+## Project Topics
+
+- **Evolving Structure**  
+  Optimization of robot morphology (voxel layout) using evolutionary strategies to improve task performance.
+
+- **Evolving Controller**  
+  Evolution of neural controllers for a fixed robot structure, focusing on locomotion and task-solving ability.
+
+- **Evolving Structure and Controller**  
+  Co-evolution of both the robot's physical structure and its controller using cooperative optimization methods.
+
+## Requirements
+
+- Python 3.10
+- EvoGym 2.0.0
+- NumPy 1.23.5
+- Torch 2.5.1
+- Gymnasium 2.0.0
+- Imageio 2.36.1
+
+---
+
+For more info on EvoGym, visit [evogym.org](https://evogym.org/).
